@@ -1,21 +1,15 @@
-# Node.js backend Dockerfile for task-tracker-backend
-FROM node:20-alpine
+FROM node:20
 
 WORKDIR /app
 
-# Install dependencies first
 COPY package*.json ./
-RUN npm install
+RUN npm install -g nodemon && npm install
 
-# Copy source
+# Only copy source after dependencies to optimize cache
 COPY . .
 
-# Expose backend port (matches PORT in .env)
 EXPOSE 7000
 
-# Default environment
 ENV NODE_ENV=development
-ENV CHOKIDAR_USEPOLLING=true
 
-# Start the server (uses nodemon in dev)
-CMD ["npm", "run", "dev"]
+CMD ["nodemon", "app.js"]
