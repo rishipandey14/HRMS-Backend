@@ -4,9 +4,9 @@ const parsePagination = require("../utils/pagination");
 const getProjectsByCompany = async (req, res) => {
   try {
     const { companyId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user._id; // company accounts don't have companyCode
 
     if (companyCode !== companyId) {
       return res.status(403).json({ error: "Access denied: wrong company" });
@@ -61,8 +61,9 @@ const getProjectById = async (req, res) => {
 
 const createProject = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const companyId = req.user.companyCode;
+    const userId = req.user._id;
+    // For company accounts, use _id; for users, use companyCode
+    const companyId = req.user.companyCode || req.user._id;
 
     // Generate unique 4-digit project ID
     let projectId, idTaken;
