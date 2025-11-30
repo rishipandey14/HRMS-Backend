@@ -1,4 +1,5 @@
 const Company = require("../models/Company");
+const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
@@ -49,9 +50,9 @@ const signupCompany = async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       {
-        _id: newCompany._id,
+        id: newCompany._id,
         role: newCompany.role,
-        companyCode: newCompany._id
+        type: 'company',
       },
       JWT_SECRET,
       { expiresIn: "7d" }
@@ -73,4 +74,40 @@ const signupCompany = async (req, res) => {
   }
 };
 
-module.exports = { signupCompany };
+// List all users associated with the logged-in company
+const listCompanyUsers = async (req, res) => {
+  try {
+    // Ensure the requester is a company account
+    if (req.userType !== 'company') {
+      return res.status(403).json({ msg: 'Only company accounts can list users' });
+    }
+
+    const companyId = req.user._id; // 6-digit company code
+
+    // Optional pagination
+    const page = parseInt(req.query.page || '1', 10);
+    const limit = parseInt(req.query.limit || '50', 10);
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      User.find({ companyCode: companyId, role: 'user' })
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      User.countDocuments({ companyCode: companyId, role: 'user' })
+    ]);
+
+    res.json({
+      page,
+      limit,
+      total,
+      users,
+    });
+  } catch (error) {
+    console.error('listCompanyUsers error:', error);
+    res.status(500).json({ msg: 'Failed to list company users' });
+  }
+};
+
+module.exports = { signupCompany, listCompanyUsers };
