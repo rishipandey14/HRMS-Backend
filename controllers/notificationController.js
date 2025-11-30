@@ -3,24 +3,22 @@ const Notification = require('../models/Notification');
 // Get notifications for a company (admin)
 const getNotifications = async (req, res) => {
   try {
+    // Only admins can view notifications
+    if (req.userRole !== 'admin') {
+      return res.status(403).json({ msg: 'Only admins can view notifications' });
+    }
+
     // For Company users, use _id as companyCode; for regular users, use companyCode
     const companyCode = req.user.companyCode || req.user._id;
     const { type, status } = req.query;
-
-    // console.log('Fetching notifications for companyCode:', companyCode);
-    // console.log('User object:', req.user);
 
     const filter = { companyCode };
     if (type) filter.type = type;
     if (status) filter.status = status;
 
-    // console.log('Filter:', filter);
-
     const notifications = await Notification.find(filter)
       .sort({ createdAt: -1 })
       .limit(50);
-
-    // console.log('Found notifications:', notifications.length);
 
     res.json({ notifications });
   } catch (error) {
