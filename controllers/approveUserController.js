@@ -1,6 +1,7 @@
 // controllers/approveUserController.js
 
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // Approve or reject user
 const approveUser = async (req, res) => {
@@ -19,6 +20,15 @@ const approveUser = async (req, res) => {
     }
 
     await user.save();
+
+    // Update related notification status
+    await Notification.updateMany(
+      { userId: userId, type: 'user_approval', status: 'pending' },
+      { 
+        status: action === 'approve' ? 'approved' : 'rejected',
+        isRead: true 
+      }
+    );
 
     res.status(200).json({ msg: `User ${action}d successfully`, role: user.role });
   } catch (error) {

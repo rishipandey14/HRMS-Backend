@@ -62,6 +62,7 @@ const jwt = require("jsonwebtoken");
 
 const User = require("../models/User");
 const Company = require("../models/Company");
+const Notification = require('../models/Notification');
 
 // Store secret in env in production
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key";
@@ -115,6 +116,22 @@ const signupUser = async (req, res) => {
     });
 
     await newUser.save();
+
+    // Create notification for admin approval
+    try {
+      const notification = await Notification.create({
+        companyCode,
+        type: 'user_approval',
+        userId: newUser._id,
+        userName: name,
+        userEmail: email,
+        message: `${name} has requested to join your company`,
+        status: 'pending'
+      });
+      console.log('Notification created:', notification);
+    } catch (notifError) {
+      console.error('Failed to create notification:', notifError);
+    }
 
     // Generate JWT for testing (optional for unauthorized)
     const token = jwt.sign(
