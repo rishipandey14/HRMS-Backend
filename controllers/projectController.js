@@ -32,12 +32,15 @@ const getProjectsByCompany = async (req, res) => {
 const getProjectById = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id || req.user.id; // Handle both _id and id
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user._id; // company accounts may use _id
 
     const project = await Project.findById(projectId).lean();
-    if (!project) return res.status(404).json({ error: "Project not found" });
+    
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
 
     if (project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
@@ -54,8 +57,8 @@ const getProjectById = async (req, res) => {
 
     return res.json(project);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Error fetching project" });
+    console.error("Error fetching project:", err);
+    return res.status(500).json({ error: "Error fetching project", message: err.message });
   }
 };
 
@@ -91,8 +94,8 @@ const createProject = async (req, res) => {
 
 const updateProject = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const companyCode = req.user.companyCode;
+    const userId = req.user._id || req.user.id; // Handle both _id and id
+    const companyCode = req.user.companyCode || req.user._id; // company accounts may use _id
     const { projectId } = req.params;
 
     const project = await Project.findById(projectId);
@@ -117,7 +120,7 @@ const updateProject = async (req, res) => {
 
 const deleteProject = async (req, res) => {
   try {
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user._id; // company accounts may use _id
     const { projectId } = req.params;
 
     const project = await Project.findById(projectId);
