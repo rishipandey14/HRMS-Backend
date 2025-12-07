@@ -36,7 +36,9 @@ const getProjectById = async (req, res) => {
     const role = req.user.role;
     const companyCode = req.user.companyCode || req.user._id; // company accounts may use _id
 
-    const project = await Project.findById(projectId).lean();
+    const project = await Project.findById(projectId)
+      .populate('participants', '-password') // Populate participants with full user data
+      .lean();
     
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
@@ -48,7 +50,7 @@ const getProjectById = async (req, res) => {
 
     if (
       !(role === "admin" || role === "sadmin") &&
-      (!project.participants || !project.participants.includes(userId))
+      (!project.participants || !project.participants.map(p => p._id || p).includes(userId))
     ) {
       return res
         .status(403)
