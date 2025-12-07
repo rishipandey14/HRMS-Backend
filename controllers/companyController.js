@@ -77,25 +77,35 @@ const signupCompany = async (req, res) => {
 // List all users associated with the logged-in company
 const listCompanyUsers = async (req, res) => {
   try {
-    // Ensure the requester is a company account
-    if (req.userType !== 'company') {
-      return res.status(403).json({ msg: 'Only company accounts can list users' });
-    }
+    // Allow both company accounts and regular users to view company members
+    let companyId;
 
-    const companyId = req.user._id; // 6-digit company code
+    if (req.userType === 'company') {
+      // Company admin - use their company ID
+      companyId = req.user._id;
+    } else if (req.userType === 'user') {
+      // Regular user - use their company code from the user document
+      companyId = req.user.companyCode;
+      if (!companyId) {
+        return res.status(403).json({ msg: 'User is not associated with any company' });
+      }
+    } else {
+      return res.status(403).json({ msg: 'Access denied: Invalid user type' });
+    }
 
     // Optional pagination
     const page = parseInt(req.query.page || '1', 10);
     const limit = parseInt(req.query.limit || '50', 10);
     const skip = (page - 1) * limit;
 
+    // Fetch both admin and regular users of the company
     const [users, total] = await Promise.all([
-      User.find({ companyCode: companyId, role: 'user' })
+      User.find({ companyCode: companyId })
         .select('-password')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      User.countDocuments({ companyCode: companyId, role: 'user' })
+      User.countDocuments({ companyCode: companyId })
     ]);
 
     res.json({

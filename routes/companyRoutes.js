@@ -9,6 +9,6 @@ router.post('/signup', signupCompany);
 router.post('/approve', authMiddleware, roleMiddleware(['admin']), approveUser);
 
 // List all users associated with logged-in company
-router.get('/users', authMiddleware, roleMiddleware(['admin']), listCompanyUsers);
+router.get('/users', authMiddleware, listCompanyUsers);
 
 module.exports = router;
