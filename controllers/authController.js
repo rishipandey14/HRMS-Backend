@@ -92,7 +92,31 @@ const logout = async (req, res) => {
   }
 };
 
+// Verify token without querying DB; returns decoded user data for microservices
+const verifyToken = (req, res) => {
+  try {
+    // req.user is already attached by authMiddleware
+    // req.userType is 'user' or 'company'
+    // req.userRole is the role
+    res.json({
+      msg: 'Token valid',
+      user: {
+        id: req.user._id,
+        email: req.user.email,
+        name: req.user.name || req.user.companyName,
+        type: req.userType,
+        role: req.userRole,
+        companyCode: req.user.companyCode || req.user._id, // for users or companies
+      },
+    });
+  } catch (err) {
+    console.error('Verify token error:', err.message);
+    res.status(401).json({ msg: 'Invalid token' });
+  }
+};
+
 module.exports = {
   login,
   logout,
+  verifyToken,
 };
