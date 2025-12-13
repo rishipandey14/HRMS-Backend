@@ -1,4 +1,5 @@
 const Project = require("../models/Project");
+const Task = require("../models/Task");
 const parsePagination = require("../utils/pagination");
 
 const getProjectsByCompany = async (req, res) => {
@@ -26,6 +27,65 @@ const getProjectsByCompany = async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Error fetching projects" });
+  }
+};
+
+// ⭐ NEW ENDPOINT: Get projects with task statistics in ONE call
+const getProjectsByCompanyWithStats = async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    const userId = req.user._id;
+    const role = req.user.role;
+    const companyCode = req.user.companyCode || req.user._id;
+
+    if (companyCode !== companyId) {
+      return res.status(403).json({ error: "Access denied: wrong company" });
+    }
+
+    const filter = { companyId };
+
+    if (!(role === "admin" || role === "sadmin")) {
+      filter.participants = userId;
+    }
+
+    const { page, limit, skip } = parsePagination(req.query);
+    const total = await Project.countDocuments(filter);
+    const projects = await Project.find(filter).skip(skip).limit(limit).lean();
+
+    // ⭐ Fetch ALL tasks for these projects in ONE query
+    const projectIds = projects.map(p => p._id);
+    const allTasks = await Task.find({ projectId: { $in: projectIds } }).lean();
+
+    // ⭐ Build task stats map
+    const taskStatsByProject = {};
+    allTasks.forEach(task => {
+      if (!taskStatsByProject[task.projectId]) {
+        taskStatsByProject[task.projectId] = {
+          total: 0,
+          completed: 0
+        };
+      }
+      taskStatsByProject[task.projectId].total += 1;
+      if (task.status === 'Completed') {
+        taskStatsByProject[task.projectId].completed += 1;
+      }
+    });
+
+    // ⭐ Attach stats to projects
+    const projectsWithStats = projects.map(project => {
+      const stats = taskStatsByProject[project._id] || { total: 0, completed: 0 };
+      const progress = stats.total === 0 ? 0 : Math.round((stats.completed / stats.total) * 100);
+      return {
+        ...project,
+        taskStats: stats,
+        taskProgress: progress
+      };
+    });
+
+    return res.json({ total, page, limit, projects: projectsWithStats });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Error fetching projects with stats" });
   }
 };
 
@@ -143,6 +203,7 @@ const deleteProject = async (req, res) => {
 
 module.exports = {
   getProjectsByCompany,
+  getProjectsByCompanyWithStats,
   getProjectById,
   createProject,
   updateProject,

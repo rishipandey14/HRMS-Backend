@@ -30,13 +30,7 @@ taskSchema.pre("save", function (next) {
   if (this.deadline && this.startingDate && this.deadline < this.startingDate) {
     return next(new Error("Deadline cannot be before starting date."));
   }
-  if (
-    this.startingDate &&
-    this.assignedDate &&
-    this.startingDate < this.assignedDate
-  ) {
-    return next(new Error("Starting date cannot be before assigned date."));
-  }
+  // Removed assignedDate validation to allow historical task creation
   next();
 });
 

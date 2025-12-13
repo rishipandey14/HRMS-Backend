@@ -2,6 +2,25 @@ const Task = require("../models/Task");
 const Project = require("../models/Project");
 const parsePagination = require("../utils/pagination");
 
+// Helper: resolve project either by Mongo _id or numeric/string project code
+const resolveProject = async (projectId) => {
+  if (!projectId) return null;
+  // If looks like a Mongo ObjectId
+  const isObjectId = typeof projectId === "string" && projectId.length === 24;
+  if (isObjectId) {
+    const proj = await Project.findById(projectId);
+    if (proj) return proj;
+  }
+  // Fallback: treat as business code/id stored in Project._id or a dedicated field
+  // Try direct _id match (non-ObjectId string) then common code fields
+  const byStringId = await Project.findOne({ _id: projectId });
+  if (byStringId) return byStringId;
+  const byCode = await Project.findOne({ projectId: projectId });
+  if (byCode) return byCode;
+  const byCodeAlt = await Project.findOne({ code: projectId });
+  return byCodeAlt || null;
+};
+
 const getTasksByProject = async (req, res) => {
   try {
     const projectId = req.params.projectId;
@@ -9,19 +28,21 @@ const getTasksByProject = async (req, res) => {
     const role = req.user.role;
     const companyCode = req.user.companyCode;
 
-    const project = await Project.findById(projectId);
+    const project = await resolveProject(projectId);
     if (!project || project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
-    const filter = { projectId };
-    if (!(role === "admin" || role === "sadmin")) {
-      filter.assignedTo = userId;
-    }
+    // Allow all project members to see all tasks in the project
+    const filter = { projectId: project._id || projectId };
 
     const { page, limit, skip } = parsePagination(req.query);
     const total = await Task.countDocuments(filter);
-    const tasks = await Task.find(filter).skip(skip).limit(limit).lean();
+    const tasks = await Task.find(filter)
+      .populate('assignedTo', 'name email role')
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
     return res.json({ total, page, limit, tasks });
   } catch (err) {
@@ -64,6 +85,7 @@ const getTaskById = async (req, res) => {
 
 const createTask = async (req, res) => {
   try {
+    // console.log(req)
     const userId = req.user.id;
     const projectId = req.params.projectId;
     const companyCode = req.user.companyCode;
@@ -72,12 +94,26 @@ const createTask = async (req, res) => {
       return res.status(400).json({ error: "projectId is required." });
     }
 
-    const project = await Project.findById(projectId);
+    const project = await resolveProject(projectId);
     if (!project) {
       return res.status(404).json({ error: "Project not found." });
     }
     if (project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
+    }
+
+    // Normalize incoming body to match schema
+    const { title, name, dueDate, deadline, startingDate, assignedTo, status } = req.body || {};
+    const normalized = {
+      title: title || name, // backend requires title
+      deadline: dueDate || deadline || undefined,
+      startingDate: startingDate || undefined,
+      assignedTo: assignedTo || undefined,
+      status: status || undefined,
+    };
+
+    if (!normalized.title) {
+      return res.status(400).json({ error: "title is required" });
     }
 
     // Generate unique 5-digit task ID string
@@ -89,8 +125,8 @@ const createTask = async (req, res) => {
 
     const task = new Task({
       _id: taskId,
-      projectId,
-      ...req.body,
+      projectId: project._id || projectId,
+      ...normalized,
       createdBy: userId,
       updatedBy: userId,
     });

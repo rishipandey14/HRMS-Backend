@@ -8,6 +8,7 @@ const taskRoutes = require("./taskRoutes");
 
 router.use(authMiddleware);
 
+router.get("/company/:companyId/with-stats", projectController.getProjectsByCompanyWithStats);
 router.get("/company/:companyId", projectController.getProjectsByCompany);
 router.get("/:projectId", projectController.getProjectById);
 router.post("/", adminMiddleware, projectController.createProject);
