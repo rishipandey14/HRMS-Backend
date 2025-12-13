@@ -20,6 +20,7 @@ app.use("/api/projects", require("./routes/projectRoutes"));
 app.use("/api/tasks/:projectId", require("./routes/taskRoutes"));
 app.use("/api/uptimes", require("./routes/uptimeRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

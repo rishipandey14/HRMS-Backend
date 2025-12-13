@@ -98,14 +98,15 @@ const listCompanyUsers = async (req, res) => {
     const limit = parseInt(req.query.limit || '50', 10);
     const skip = (page - 1) * limit;
 
-    // Fetch both admin and regular users of the company
+    // Fetch only authorized regular users of the company
+    const userFilter = { companyCode: companyId, role: 'user' };
     const [users, total] = await Promise.all([
-      User.find({ companyCode: companyId })
+      User.find(userFilter)
         .select('-password')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      User.countDocuments({ companyCode: companyId })
+      User.countDocuments(userFilter)
     ]);
 
     res.json({
