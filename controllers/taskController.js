@@ -143,6 +143,7 @@ const updateTask = async (req, res) => {
   try {
     const userId = req.user.id;
     const companyCode = req.user.companyCode;
+    const role = req.user.role;
     const { taskId } = req.params;
 
     const task = await Task.findById(taskId);
@@ -153,6 +154,15 @@ const updateTask = async (req, res) => {
       return res
         .status(403)
         .json({ error: "Access denied: wrong project or company" });
+    }
+
+    const isAdmin = role === "admin" || role === "sadmin";
+    const isAssignee = Array.isArray(task.assignedTo)
+      ? task.assignedTo.includes(userId)
+      : task.assignedTo === userId;
+
+    if (!isAdmin && !isAssignee) {
+      return res.status(403).json({ error: "Access denied: not allowed to update this task" });
     }
 
     const updated = await Task.findByIdAndUpdate(
