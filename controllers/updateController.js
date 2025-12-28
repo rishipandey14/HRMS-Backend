@@ -33,6 +33,7 @@ const getUpdatesByTask = async (req, res) => {
     const { page, limit, skip } = parsePagination(req.query);
     const total = await Update.countDocuments(filter);
     const updates = await Update.find(filter)
+      .populate("createdBy", "name email role")
       .skip(skip)
       .limit(limit)
       .sort({ date: -1 })
