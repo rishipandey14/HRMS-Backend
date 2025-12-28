@@ -32,8 +32,9 @@ const getUpdatesByTask = async (req, res) => {
 
     const { page, limit, skip } = parsePagination(req.query);
     const total = await Update.countDocuments(filter);
-    const updates = await Update.find(filter)
+    let updates = await Update.find(filter)
       .populate("createdBy", "name email role")
+      .populate("updatedBy", "name email role")
       .skip(skip)
       .limit(limit)
       .sort({ date: -1 })
@@ -74,7 +75,16 @@ const getUpdateById = async (req, res) => {
         .json({ error: "Access denied: not assigned to this task" });
     }
 
-    return res.json(update);
+    const populated = await Update.findById(updateId)
+      .populate("createdBy", "name email role")
+      .populate("updatedBy", "name email role")
+      .lean();
+
+    if (!populated.createdBy && populated.updatedBy) {
+      populated.createdBy = populated.updatedBy;
+    }
+
+    return res.json(populated);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Error fetching update" });
@@ -87,6 +97,10 @@ const createUpdate = async (req, res) => {
     const taskId = req.params.taskId;
     const role = req.user.role;
     const companyCode = req.user.companyCode;
+
+    if (!userId) {
+      return res.status(401).json({ error: "User not found in request context" });
+    }
 
     if (!req.body.status) {
       return res.status(400).json({ error: "Status is required." });
@@ -122,7 +136,18 @@ const createUpdate = async (req, res) => {
     });
 
     await update.save();
-    return res.status(201).json(update);
+
+    // Return with creator info populated for frontend display (and updatedBy for completeness)
+    const populated = await Update.findById(update._id)
+      .populate("createdBy", "name email role")
+      .populate("updatedBy", "name email role")
+      .lean();
+
+    if (!populated.createdBy && populated.updatedBy) {
+      populated.createdBy = populated.updatedBy;
+    }
+
+    return res.status(201).json(populated);
   } catch (err) {
     console.error(err);
     return res.status(400).json({ error: err.message });
