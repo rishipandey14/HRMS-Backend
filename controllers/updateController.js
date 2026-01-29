@@ -6,35 +6,31 @@ const parsePagination = require("../utils/pagination");
 const getUpdatesByTask = async (req, res) => {
   try {
     const taskId = req.params.taskId;
-    const userId = req.user.id;
+    const userId = req.user._id;
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user._id;
 
-    const task = await Task.findById(taskId);
+    const task = await Task.findById(taskId).populate('projectId');
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const project = await Project.findById(task.projectId);
-    if (!project || project.companyId !== companyCode) {
+    if (task.projectId.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
+    const assignedUserIds = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
     if (
       role !== "admin" &&
       role !== "sadmin" &&
-      (!task.assignedTo || !task.assignedTo.includes(userId))
+      !assignedUserIds.map(id => id.toString()).includes(userId.toString())
     ) {
-      return res
-        .status(403)
-        .json({ error: "Access denied: not assigned to this task" });
+      return res.status(403).json({ error: "Access denied: not assigned to this task" });
     }
 
-    const filter = { taskId };
-
     const { page, limit, skip } = parsePagination(req.query);
-    const total = await Update.countDocuments(filter);
-    let updates = await Update.find(filter)
-      .populate("createdBy", "name email role")
-      .populate("updatedBy", "name email role")
+    const total = await Update.countDocuments({ taskId });
+    const updates = await Update.find({ taskId })
+      .populate('createdBy', '-password')
+      .populate('updatedBy', '-password')
       .skip(skip)
       .limit(limit)
       .sort({ date: -1 })
@@ -50,14 +46,19 @@ const getUpdatesByTask = async (req, res) => {
 const getUpdateById = async (req, res) => {
   try {
     const { updateId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user._id;
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user._id;
 
-    const update = await Update.findById(updateId).lean();
+    const update = await Update.findById(updateId)
+      .populate('taskId')
+      .populate('createdBy', '-password')
+      .populate('updatedBy', '-password')
+      .lean();
+    
     if (!update) return res.status(404).json({ error: "Update not found" });
 
-    const task = await Task.findById(update.taskId);
+    const task = update.taskId;
     if (!task) return res.status(404).json({ error: "Task not found" });
 
     const project = await Project.findById(task.projectId);
@@ -65,26 +66,16 @@ const getUpdateById = async (req, res) => {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
+    const assignedUserIds = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
     if (
       role !== "admin" &&
       role !== "sadmin" &&
-      (!task.assignedTo || !task.assignedTo.includes(userId))
+      !assignedUserIds.map(id => id.toString()).includes(userId.toString())
     ) {
-      return res
-        .status(403)
-        .json({ error: "Access denied: not assigned to this task" });
+      return res.status(403).json({ error: "Access denied: not assigned to this task" });
     }
 
-    const populated = await Update.findById(updateId)
-      .populate("createdBy", "name email role")
-      .populate("updatedBy", "name email role")
-      .lean();
-
-    if (!populated.createdBy && populated.updatedBy) {
-      populated.createdBy = populated.updatedBy;
-    }
-
-    return res.json(populated);
+    return res.json(update);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Error fetching update" });
@@ -93,10 +84,10 @@ const getUpdateById = async (req, res) => {
 
 const createUpdate = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const taskId = req.params.taskId;
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user._id;
 
     if (!userId) {
       return res.status(401).json({ error: "User not found in request context" });
@@ -106,24 +97,23 @@ const createUpdate = async (req, res) => {
       return res.status(400).json({ error: "Status is required." });
     }
 
-    const task = await Task.findById(taskId);
+    const task = await Task.findById(taskId).populate('projectId');
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const project = await Project.findById(task.projectId);
+    const project = task.projectId;
     if (!project) return res.status(404).json({ error: "Project not found" });
 
     if (project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
+    const assignedUserIds = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo];
     if (
       role !== "admin" &&
       role !== "sadmin" &&
-      (!task.assignedTo || !task.assignedTo.includes(userId))
+      !assignedUserIds.map(id => id.toString()).includes(userId.toString())
     ) {
-      return res
-        .status(403)
-        .json({ error: "Access denied: cannot create update" });
+      return res.status(403).json({ error: "Access denied: cannot create update" });
     }
 
     const update = new Update({
@@ -136,16 +126,10 @@ const createUpdate = async (req, res) => {
     });
 
     await update.save();
-
-    // Return with creator info populated for frontend display (and updatedBy for completeness)
     const populated = await Update.findById(update._id)
-      .populate("createdBy", "name email role")
-      .populate("updatedBy", "name email role")
+      .populate('createdBy', '-password')
+      .populate('updatedBy', '-password')
       .lean();
-
-    if (!populated.createdBy && populated.updatedBy) {
-      populated.createdBy = populated.updatedBy;
-    }
 
     return res.status(201).json(populated);
   } catch (err) {
@@ -156,7 +140,7 @@ const createUpdate = async (req, res) => {
 
 const updateUpdate = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const { updateId } = req.params;
     const role = req.user.role;
 
@@ -164,16 +148,13 @@ const updateUpdate = async (req, res) => {
       return res.status(403).json({ error: "Access denied: admin only" });
     }
 
-    const updateRecord = await Update.findById(updateId);
-    if (!updateRecord)
-      return res.status(404).json({ error: "Update not found" });
-
     const updated = await Update.findByIdAndUpdate(
       updateId,
       { ...req.body, updatedBy: userId },
       { new: true, runValidators: true }
     );
 
+    if (!updated) return res.status(404).json({ error: "Update not found" });
     return res.json(updated);
   } catch (err) {
     console.error(err);
@@ -190,11 +171,9 @@ const deleteUpdate = async (req, res) => {
       return res.status(403).json({ error: "Access denied: admin only" });
     }
 
-    const updateRecord = await Update.findById(updateId);
-    if (!updateRecord)
-      return res.status(404).json({ error: "Update not found" });
+    const updateRecord = await Update.findByIdAndDelete(updateId);
+    if (!updateRecord) return res.status(404).json({ error: "Update not found" });
 
-    await Update.findByIdAndDelete(updateId);
     return res.status(204).send();
   } catch (err) {
     console.error(err);

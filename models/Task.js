@@ -1,50 +1,87 @@
-const mongoose = require("mongoose");
-const Update = require("./Update");
+const { DataTypes } = require('sequelize');
+const { seq } = require('../config/db');
 
-const taskSchema = new mongoose.Schema(
-  {
-    _id: { type: String, required: true },
-    projectId: { type: String, ref: "Project", required: true },
-    title: { type: String, required: true, trim: true },
-    assignedTo: [{ type: String, ref: "User" }],
-    status: {
-      type: String,
-      enum: ["Not Started", "In Progress", "Completed"],
-      default: "Not Started",
-      required: true,
-    },
-    assignedDate: { type: Date, default: Date.now },
-    startingDate: Date,
-    deadline: Date,
-    createdBy: { type: String, ref: "User" },
-    updatedBy: { type: String, ref: "User" },
+const Task = seq.define('Task', {
+  id: {
+    type: DataTypes.STRING,
+    primaryKey: true,
+    allowNull: false,
   },
-  { timestamps: true }
-);
-
-taskSchema.index({ projectId: 1 });
-taskSchema.index({ status: 1 });
-taskSchema.index({ deadline: 1 });
-
-taskSchema.pre("save", function (next) {
-  if (this.deadline && this.startingDate && this.deadline < this.startingDate) {
-    return next(new Error("Deadline cannot be before starting date."));
-  }
-  // Removed assignedDate validation to allow historical task creation
-  next();
+  projectId: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    references: {
+      model: 'projects',
+      key: 'id',
+    },
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    set(value) {
+      this.setDataValue('title', value ? value.trim() : '');
+    },
+  },
+  assignedTo: {
+    type: DataTypes.JSON,
+    defaultValue: [],
+    get() {
+      const value = this.getDataValue('assignedTo');
+      return Array.isArray(value) ? value : [];
+    },
+  },
+  status: {
+    type: DataTypes.ENUM('Not Started', 'In Progress', 'Completed'),
+    defaultValue: 'Not Started',
+    allowNull: false,
+  },
+  assignedDate: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+  startingDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  deadline: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  createdBy: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id',
+    },
+  },
+  updatedBy: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id',
+    },
+  },
+}, {
+  timestamps: true,
+  tableName: 'tasks',
+  indexes: [
+    { fields: ['projectId'] },
+    { fields: ['status'] },
+    { fields: ['deadline'] },
+  ],
+  hooks: {
+    beforeValidate: (task) => {
+      if (task.deadline && task.startingDate && task.deadline < task.startingDate) {
+        throw new Error('Deadline cannot be before starting date.');
+      }
+    },
+    beforeDestroy: async (task) => {
+      const Update = require('./Update');
+      await Update.destroy({ where: { taskId: task.id } });
+    },
+  },
 });
 
-taskSchema.pre("findOneAndDelete", async function (next) {
-  try {
-    const filter = this.getFilter();
-    const task = await this.model.findOne(filter);
-    if (task) {
-      await Update.deleteMany({ taskId: task._id });
-    }
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
-
-module.exports = mongoose.model("Task", taskSchema);
+module.exports = Task;

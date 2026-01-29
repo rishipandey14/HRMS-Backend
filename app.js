@@ -3,7 +3,6 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-
 const cors = require('cors');
 const app = express();
 
@@ -13,14 +12,19 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/user", require("./routes/userRoutes"));
-app.use("/api/company", require("./routes/companyRoutes"));
-app.use("/api/projects", require("./routes/projectRoutes"));
-app.use("/api/tasks/:projectId", require("./routes/taskRoutes"));
-app.use("/api/uptimes", require("./routes/uptimeRoutes"));
-app.use("/api/notifications", require("./routes/notificationRoutes"));
-app.use("/api/dashboard", require("./routes/dashboardRoutes"));
+try {
+  app.use("/api/auth", require("./routes/authRoutes"));
+  app.use("/api/user", require("./routes/userRoutes"));
+  app.use("/api/company", require("./routes/companyRoutes"));
+  app.use("/api/projects", require("./routes/projectRoutes"));
+  app.use("/api/tasks/:projectId", require("./routes/taskRoutes"));
+  app.use("/api/uptimes", require("./routes/uptimeRoutes"));
+  app.use("/api/notifications", require("./routes/notificationRoutes"));
+  app.use("/api/dashboard", require("./routes/dashboardRoutes"));
+} catch (err) {
+  console.error('Error loading routes:', err.message);
+  process.exit(1);
+}
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

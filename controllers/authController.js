@@ -1,49 +1,53 @@
-// const Company = require('../models/Company');
-// const User = require('../models/User');
-// const jwt = require('jsonwebtoken');
-
-// const login = async (req, res) => {
-//   const { email, password } = req.body;
-
-//   let user = await User.findOne({ email }) || await Company.findOne({ email });
-//   if (!user) return res.status(400).json({ msg: 'Invalid user' });
-
-//   const isMatch = password === user.password;
-//   if (!isMatch) return res.status(400).json({ msg: 'Invalid credentials' });
-
-//   if (user.role === 'unauthorized') return res.status(403).json({ msg: 'Awaiting admin approval' });
-
-//   const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-//   res.json({ token, role: user.role });
-// };
-
-// module.exports = { login };
 const Company = require('../models/Company');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { createSessionForUser, endSessionForUser } = require('../services/sessionService');
 
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Try to find user in both collections
-    let user = await User.findOne({ email });
+    if (!email || !password) {
+      return res.status(400).json({ msg: 'Email and password are required' });
+    }
+
+    // Try to find user in both tables
+    let user = await User.findOne({ where: { email } });
     let isCompany = false;
 
     if (!user) {
-      user = await Company.findOne({ email });
+      user = await Company.findOne({ where: { email } });
       isCompany = true;
     }
 
     if (!user) {
+      console.log(`User/Company not found with email: ${email}`);
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // Compare hashed password
-    const isMatch = await bcrypt.compare(password, user.password);
+    console.log(`Found ${isCompany ? 'company' : 'user'} with email: ${email}`);
+
+    // Get password field if not included (Sequelize excludes it by default for User)
+    if (!user.password) {
+      user = isCompany 
+        ? await Company.findOne({ where: { email } })
+        : await User.scope('withPassword').findOne({ where: { email } });
+    }
+
+    // Compare password
+    let isMatch = false;
+    try {
+      isMatch = await bcrypt.compare(password, user.password);
+      console.log(`Password comparison result: ${isMatch} for email: ${email}`);
+    } catch (bcryptErr) {
+      // Fall back to plain text comparison for backward compatibility
+      console.warn('Bcrypt comparison failed, falling back to plain text:', bcryptErr.message);
+      isMatch = password === user.password;
+    }
+
     if (!isMatch) {
+      console.log(`Password mismatch for email: ${email}`);
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
@@ -53,15 +57,15 @@ const login = async (req, res) => {
     }
 
     // Create session after successful login
-    await createSessionForUser(user);
+    await createSessionForUser(user, isCompany);
 
     // JWT payload
     const payload = {
-      id: user._id,
+      id: user.id,
       role: user.role,
       email: user.email,
       type: isCompany ? 'company' : 'user',
-      companyCode: isCompany ? user._id : user.companyCode,
+      companyCode: isCompany ? user.id : user.companyCode,
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -71,11 +75,15 @@ const login = async (req, res) => {
       token,
       role: user.role,
       type: isCompany ? 'company' : 'user',
-      userId: user._id
+      userId: user.id
     });
   } catch (error) {
-    console.error('Login error:', error.message);
-    res.status(500).json({ msg: 'Internal server error' });
+    console.error('Login error:', error);
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({ 
+      msg: 'Internal server error',
+      ...(isDev && { error: error.message })
+    });
   }
 };
 
@@ -101,12 +109,12 @@ const verifyToken = (req, res) => {
     res.json({
       msg: 'Token valid',
       user: {
-        id: req.user._id,
+        id: req.user.id,
         email: req.user.email,
         name: req.user.name || req.user.companyName,
         type: req.userType,
         role: req.userRole,
-        companyCode: req.user.companyCode || req.user._id, // for users or companies
+        companyCode: req.user.companyCode || req.user.id, // for users or companies
       },
     });
   } catch (err) {

@@ -1,49 +1,74 @@
-const mongoose = require("mongoose");
-const User = require("./User");
-const Project = require("./Project");
-const Uptime = require("./Uptime");
-// const Session = require("./Session");
+const { DataTypes } = require('sequelize');
+const bcrypt = require('bcryptjs');
+const { seq } = require('../config/db');
 
-const companySchema = new mongoose.Schema({
-  _id: {
-    type: String, // 6-digit string
-    required: true,
-  },
-  companyName: String,
-  email: String,
-  address: String,
-  companyType: String,
-  password: String,
-  logo: String,
-  role: {
-    type: String,
-    default: "admin",
-  },
-}, { timestamps: true });
-
-companySchema.index({ email: 1 }, { unique: true });
-companySchema.index({ role: 1 });
-
-companySchema.pre("findOneAndDelete", async function (next) {
-  try {
-    const filter = this.getFilter();
-    const company = await this.model.findOne(filter);
-    if (company) {
-      const companyId = company._id;
-
-      await User.deleteMany({ companyCode: companyId });
-
-      await Project.deleteMany({ companyId });
-
-      await Uptime.deleteMany({ companyId });
-
-      // const Session = require('./Session');
-      // await Session.deleteMany({ companyId });
-    }
-    next();
-  } catch (err) {
-    next(err);
-  }
+const Company = seq.define('Company', {
+	id: {
+		type: DataTypes.STRING(6),
+		primaryKey: true,
+		allowNull: false,
+	},
+	companyName: {
+		type: DataTypes.STRING,
+		allowNull: false,
+	},
+	email: {
+		type: DataTypes.STRING,
+		unique: true,
+		allowNull: false,
+		validate: {
+			isEmail: true,
+		},
+	},
+	address: {
+		type: DataTypes.STRING,
+		allowNull: true,
+	},
+	companyType: {
+		type: DataTypes.STRING,
+		allowNull: true,
+	},
+	password: {
+		type: DataTypes.STRING,
+		allowNull: false,
+	},
+	logo: {
+		type: DataTypes.STRING,
+		allowNull: true,
+	},
+	role: {
+		type: DataTypes.ENUM('admin', 'sadmin'),
+		defaultValue: 'admin',
+	},
+}, {
+	timestamps: true,
+	tableName: 'companies',
+	hooks: {
+		// Hash password before creating
+		beforeCreate: async (company) => {
+			if (company.password) {
+				const salt = await bcrypt.genSalt(10);
+				company.password = await bcrypt.hash(company.password, salt);
+			}
+		},
+		// Hash password before updating if changed
+		beforeUpdate: async (company) => {
+			if (company.changed('password')) {
+				const salt = await bcrypt.genSalt(10);
+				company.password = await bcrypt.hash(company.password, salt);
+			}
+		},
+		// Cascade delete related records
+		beforeDestroy: async (company) => {
+			const User = require('./User');
+			const Project = require('./Project');
+			const Uptime = require('./Uptime');
+			
+			await User.destroy({ where: { companyCode: company.id } });
+			await Project.destroy({ where: { companyId: company.id } });
+			await Uptime.destroy({ where: { companyId: company.id } });
+		},
+	},
 });
 
-module.exports = mongoose.model("Company", companySchema);
+module.exports = Company;

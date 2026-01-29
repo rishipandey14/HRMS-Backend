@@ -1,46 +1,72 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require('sequelize');
+const { seq } = require('../config/db');
 
-const uptimeSchema = new mongoose.Schema(
-  {
-    userId: { type: String, ref: "User", required: true },
-    companyId: { type: String, ref: "Company" },
-    week: {
-      type: String,
-      required: true,
-      validate: {
-        validator: function (v) {
-          return /^\d{4}-W\d{2}$/.test(v);
-        },
-        message: (props) =>
-          `${props.value} is not a valid ISO week format (YYYY-Www)!`,
-      },
-    },
-    dailyHours: {
-      Mon: { type: Number, default: 0 },
-      Tue: { type: Number, default: 0 },
-      Wed: { type: Number, default: 0 },
-      Thu: { type: Number, default: 0 },
-      Fri: { type: Number, default: 0 },
-      Sat: { type: Number, default: 0 },
-      Sun: { type: Number, default: 0 },
-    },
-  },
-  { timestamps: true }
-);
+const defaultDaily = () => ({ Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0, Sun: 0 });
 
-uptimeSchema.index({ userId: 1, week: 1 }, { unique: true });
-uptimeSchema.index({ companyId: 1 });
-
-uptimeSchema.pre("save", function (next) {
-  const hours = Object.values(this.dailyHours);
-  if (hours.some((h) => h < 0 || h > 24)) {
-    return next(new Error("Daily hours must be between 0 and 24."));
-  }
-  next();
+const Uptime = seq.define('Uptime', {
+	id: {
+		type: DataTypes.INTEGER,
+		primaryKey: true,
+		autoIncrement: true,
+	},
+	userId: {
+		type: DataTypes.INTEGER,
+		allowNull: false,
+		references: {
+			model: 'users',
+			key: 'id',
+		},
+		onDelete: 'CASCADE',
+		onUpdate: 'CASCADE',
+	},
+	companyId: {
+		type: DataTypes.STRING(6),
+		allowNull: true,
+		references: {
+			model: 'companies',
+			key: 'id',
+		},
+		onDelete: 'CASCADE',
+		onUpdate: 'CASCADE',
+	},
+	week: {
+		type: DataTypes.STRING,
+		allowNull: false,
+		validate: {
+			isValidWeek(value) {
+				if (!/^\d{4}-W\d{2}$/.test(value)) {
+					throw new Error('Week format should be YYYY-Www');
+				}
+			},
+		},
+	},
+	dailyHours: {
+		type: DataTypes.JSON,
+		defaultValue: defaultDaily(),
+		get() {
+			const value = this.getDataValue('dailyHours');
+			return value || defaultDaily();
+		},
+	},
+}, {
+	timestamps: true,
+	tableName: 'uptimes',
+	indexes: [
+		{
+			unique: true,
+			fields: ['userId', 'week'],
+		},
+	],
+	hooks: {
+		beforeValidate: (uptime) => {
+			if (uptime.dailyHours) {
+				const hours = Object.values(uptime.dailyHours);
+				if (hours.some(h => h < 0 || h > 24)) {
+					throw new Error('Daily hours must be between 0 and 24.');
+				}
+			}
+		},
+	},
 });
 
-uptimeSchema.virtual("totalHours").get(function () {
-  return Object.values(this.dailyHours).reduce((a, b) => a + b, 0);
-});
-
-module.exports = mongoose.model("Uptime", uptimeSchema);
+module.exports = Uptime;

@@ -1,6 +1,6 @@
 const Company = require("../models/Company");
 const User = require("../models/User");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret"; // Use .env in production
@@ -11,7 +11,7 @@ const generateCompanyId = async () => {
   let exists = true;
   while (exists) {
     newId = Math.floor(100000 + Math.random() * 900000).toString();
-    const existing = await Company.findById(newId);
+    const existing = await Company.findByPk(newId);
     if (!existing) exists = false;
   }
   return newId;
@@ -23,34 +23,30 @@ const signupCompany = async (req, res) => {
     const { companyName, email, address, companyType, password } = req.body;
 
     // Check if company already exists
-    const existingCompany = await Company.findOne({ email });
+    const existingCompany = await Company.findOne({ where: { email } });
     if (existingCompany) {
       return res.status(400).json({ msg: "Company already exists" });
     }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
 
     // Generate unique company ID
     const companyId = await generateCompanyId();
 
     // Create and save new company
-    const newCompany = new Company({
-      _id: companyId,
+    // Password will be hashed automatically by the Company model's beforeCreate hook
+    const newCompany = await Company.create({
+      id: companyId,
       companyName,
       email,
       address,
       companyType,
-      password: hashedPassword,
-      role: "admin" // default role
+      password, // Pass plain password - model will hash it
+      role: "admin"
     });
-
-    await newCompany.save();
 
     // Generate JWT token
     const token = jwt.sign(
       {
-        id: newCompany._id,
+        id: newCompany.id,
         role: newCompany.role,
         type: 'company',
       },
@@ -63,7 +59,7 @@ const signupCompany = async (req, res) => {
       msg: "Company registered successfully",
       token,
       company: {
-        _id: newCompany._id,
+        _id: newCompany.id,
         email: newCompany.email,
         companyName: newCompany.companyName,
         role: newCompany.role
@@ -101,12 +97,14 @@ const listCompanyUsers = async (req, res) => {
     // Fetch only authorized regular users of the company
     const userFilter = { companyCode: companyId, role: 'user' };
     const [users, total] = await Promise.all([
-      User.find(userFilter)
-        .select('-password')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      User.countDocuments(userFilter)
+      User.findAll({
+        where: userFilter,
+        attributes: { exclude: ['password'] },
+        order: [['createdAt', 'DESC']],
+        offset: skip,
+        limit
+      }),
+      User.count({ where: userFilter })
     ]);
 
     res.json({

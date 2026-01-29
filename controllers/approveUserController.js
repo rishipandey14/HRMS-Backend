@@ -8,7 +8,7 @@ const approveUser = async (req, res) => {
   try {
     const { userId, action } = req.body;
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ msg: 'User not found' });
 
     if (action === 'approve') {
@@ -22,12 +22,9 @@ const approveUser = async (req, res) => {
     await user.save();
 
     // Update related notification status
-    await Notification.updateMany(
-      { userId: userId, type: 'user_approval', status: 'pending' },
-      { 
-        status: action === 'approve' ? 'approved' : 'rejected',
-        isRead: true 
-      }
+    await Notification.update(
+      { status: action === 'approve' ? 'approved' : 'rejected', isRead: true },
+      { where: { userId, type: 'user_approval', status: 'pending' } }
     );
 
     res.status(200).json({ msg: `User ${action}d successfully`, role: user.role });

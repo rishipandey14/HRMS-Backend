@@ -1,28 +1,60 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require('sequelize');
+const { seq } = require('../config/db');
 
-const sessionSchema = new mongoose.Schema(
-  {
-    userId: { type: String, ref: "User", required: true },
-    companyId: { type: String, ref: "Company", required: true },
-    loginAt: { type: Date, required: true },
-    logoutAt: { type: Date, default: null },
-    durationHours: { type: Number, default: 0 },
-  },
-  { timestamps: true }
-);
-
-sessionSchema.index({ userId: 1, logoutAt: 1 });
-sessionSchema.index({ companyId: 1, loginAt: 1 });
-
-sessionSchema.pre("save", function (next) {
-  if (this.logoutAt && this.loginAt) {
-    const diff = this.logoutAt.getTime() - this.loginAt.getTime();
-    if (diff < 0) {
-      return next(new Error("logoutAt cannot be earlier than loginAt"));
-    }
-    this.durationHours = diff / (1000 * 60 * 60);
-  }
-  next();
+const Session = seq.define('Session', {
+	id: {
+		type: DataTypes.INTEGER,
+		primaryKey: true,
+		autoIncrement: true,
+	},
+	userId: {
+		type: DataTypes.INTEGER,
+		allowNull: true,
+		references: {
+			model: 'users',
+			key: 'id',
+		},
+		onDelete: 'CASCADE',
+		onUpdate: 'CASCADE',
+	},
+	companyId: {
+		type: DataTypes.STRING(6),
+		allowNull: true,
+		references: {
+			model: 'companies',
+			key: 'id',
+		},
+		onDelete: 'CASCADE',
+		onUpdate: 'CASCADE',
+	},
+	loginAt: {
+		type: DataTypes.DATE,
+		allowNull: false,
+		defaultValue: DataTypes.NOW,
+	},
+	logoutAt: {
+		type: DataTypes.DATE,
+		allowNull: true,
+		defaultValue: null,
+	},
+	durationHours: {
+		type: DataTypes.FLOAT,
+		defaultValue: 0,
+	},
+}, {
+	timestamps: true,
+	tableName: 'sessions',
+	hooks: {
+		beforeSave: (session) => {
+			if (session.logoutAt && session.loginAt) {
+				const diff = session.logoutAt.getTime() - session.loginAt.getTime();
+				if (diff < 0) {
+					throw new Error('logoutAt cannot be earlier than loginAt');
+				}
+				session.durationHours = diff / (1000 * 60 * 60);
+			}
+		},
+	},
 });
 
-module.exports = mongoose.model("Session", sessionSchema);
+module.exports = Session;

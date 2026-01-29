@@ -28,17 +28,16 @@ const authMiddleware = async (req, res, next) => {
     // Attach user/company details to req.user
     let user;
     if (decoded.type === 'company') {
-      user = await Company.findById(decoded.id).select('-password');
+      user = await Company.findByPk(decoded.id, { attributes: { exclude: ['password'] } });
     } else {
-      user = await User.findById(decoded.id).select('-password');
+      user = await User.findByPk(decoded.id, { attributes: { exclude: ['password'] } });
     }
 
     if (!user) return res.status(401).json({ msg: 'User not found' });
 
     // Normalize common fields on req.user
-    req.user = user.toObject ? user.toObject() : user;
-    req.user.id = req.user._id?.toString?.() || req.user.id;
-    req.user.companyCode = decoded.companyCode || req.user.companyCode || req.user.companyId || req.user._id?.toString?.();
+    req.user = user.get ? user.get({ plain: true }) : user;
+    req.user.companyCode = decoded.companyCode || req.user.companyCode || req.user.companyId || req.user.id;
 
     req.userType = decoded.type; // 'user' or 'company'
     req.userRole = decoded.role; // 'admin', 'sadmin', etc.
