@@ -20,8 +20,9 @@ const connectDB = async () => {
     const Uptime = require('../models/Uptime');
     const Notification = require('../models/Notification');
     
-    // Sync all models with the database (alter: true allows modifications without dropping data)
-    await seq.sync({ alter: true });
+    // Sync all models with the database
+    // Note: disable alter to avoid repeated index creation hitting MySQL's key limit
+    await seq.sync({ alter: false });
     console.log('All models synchronized');
     
     // Set auto-increment start value for User id to 100000

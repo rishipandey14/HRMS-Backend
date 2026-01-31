@@ -1,3 +1,5 @@
+const { Op } = require('sequelize');
+const { seq } = require('../config/db');
 const Project = require("../models/Project");
 const Task = require("../models/Task");
 const User = require("../models/User");
@@ -5,26 +7,49 @@ const Uptime = require("../models/Uptime");
 
 const getDashboardData = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const role = req.user.role;
-    const companyCode = req.user.companyCode || req.user._id;
+    const companyCode = req.user.companyCode || req.user.id;
     const isAdmin = role === "admin" || role === "sadmin";
 
     // Fetch all projects (for admin) or user's projects
     let projectFilter = { companyId: companyCode };
     if (!isAdmin) {
-      projectFilter.participants = userId;
+      // participants is a JSON array; match both numeric and string IDs
+      const participantFilter = {
+        [Op.or]: [
+          seq.where(
+            seq.fn('JSON_CONTAINS', seq.col('participants'), seq.fn('JSON_ARRAY', userId)),
+            1
+          ),
+          seq.where(
+            seq.fn('JSON_CONTAINS', seq.col('participants'), seq.fn('JSON_ARRAY', String(userId))),
+            1
+          )
+        ]
+      };
+
+      projectFilter = {
+        companyId: companyCode,
+        [Op.and]: [participantFilter]
+      };
     }
 
-    const allProjects = await Project.find(projectFilter).lean();
+    const allProjects = await Project.findAll({ 
+      where: projectFilter,
+      raw: true 
+    });
 
     // Calculate project statistics
     const totalProjects = allProjects.length;
     
     // Get all tasks for these projects to calculate status counts
-    const projectIds = allProjects.map(p => p._id);
-    const tasksFilter = projectIds.length > 0 ? { projectId: { $in: projectIds } } : { projectId: null };
-    const allTasks = await Task.find(tasksFilter).lean();
+    const projectIds = allProjects.map(p => p.id);
+    const tasksFilter = projectIds.length > 0 ? { projectId: { [Op.in]: projectIds } } : { projectId: null };
+    const allTasks = await Task.findAll({ 
+      where: tasksFilter,
+      raw: true 
+    });
 
     // Categorize projects by status
     const now = new Date();
@@ -42,8 +67,14 @@ const getDashboardData = async (req, res) => {
     // Get project analytics (last 7 days - or week uptime data)
     const currentWeek = getISOWeek(new Date());
     const uptimeData = isAdmin 
-      ? await Uptime.find({ companyId: companyCode, week: currentWeek }).lean()
-      : await Uptime.find({ userId, week: currentWeek }).lean();
+      ? await Uptime.findAll({ 
+          where: { companyId: companyCode, week: currentWeek },
+          raw: true 
+        })
+      : await Uptime.findAll({ 
+          where: { userId, week: currentWeek },
+          raw: true 
+        });
 
     // Transform uptime data to daily hours for bar chart
     const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -68,10 +99,59 @@ const getDashboardData = async (req, res) => {
     // Get team collaboration - tasks with project info grouped by person
     let collaborationTasks = [];
     if (projectIds.length > 0) {
-      collaborationTasks = await Task.find(tasksFilter)
-        .populate("assignedTo", "name email _id")
-        .populate("projectId", "title _id")
-        .lean();
+      // Fetch tasks with raw data
+      const tasks = await Task.findAll({
+        where: tasksFilter,
+        raw: true 
+      });
+      
+      // Collect all unique user IDs from tasks
+      const allUserIds = new Set();
+      tasks.forEach(task => {
+        const assignedToIds = Array.isArray(task.assignedTo) ? task.assignedTo : [];
+        assignedToIds.forEach(id => allUserIds.add(id));
+      });
+      
+      // Fetch all users at once
+      const users = await User.findAll({
+        where: { id: { [Op.in]: Array.from(allUserIds) } },
+        attributes: ['id', 'name', 'email'],
+        raw: true
+      });
+      
+      // Create user map for quick lookup
+      const userMap = {};
+      users.forEach(user => {
+        userMap[user.id] = user;
+      });
+      
+      // Fetch all projects at once (we already have them)
+      const projects = await Project.findAll({
+        where: { id: { [Op.in]: projectIds } },
+        attributes: ['id', 'title'],
+        raw: true
+      });
+      
+      // Create project map for quick lookup
+      const projectMap = {};
+      projects.forEach(proj => {
+        projectMap[proj.id] = proj;
+      });
+      
+      // Build collaboration tasks with related data
+      collaborationTasks = tasks.map(task => {
+        const assignedToIds = Array.isArray(task.assignedTo) ? task.assignedTo : [];
+        const assignedUsers = assignedToIds.map(id => userMap[id]).filter(Boolean);
+        
+        return {
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          deadline: task.deadline,
+          assignedTo: assignedUsers,
+          projectId: projectMap[task.projectId] || null
+        };
+      });
     }
 
     // Group tasks by person and project
@@ -79,29 +159,29 @@ const getDashboardData = async (req, res) => {
     collaborationTasks.forEach(task => {
       if (task.assignedTo && Array.isArray(task.assignedTo)) {
         task.assignedTo.forEach(member => {
-          if (member && member._id) {
-            if (!teamMembersMap[member._id]) {
-              teamMembersMap[member._id] = {
-                _id: member._id,
+          if (member && member.id) {
+            if (!teamMembersMap[member.id]) {
+              teamMembersMap[member.id] = {
+                id: member.id,
                 name: member.name,
                 email: member.email,
                 projectTasks: {} // Group by project
               };
             }
             
-            const projectId = task.projectId?._id || task.projectId;
+            const projectId = task.projectId?.id || task.projectId;
             const projectTitle = task.projectId?.title || "Unknown Project";
             
-            if (!teamMembersMap[member._id].projectTasks[projectId]) {
-              teamMembersMap[member._id].projectTasks[projectId] = {
+            if (!teamMembersMap[member.id].projectTasks[projectId]) {
+              teamMembersMap[member.id].projectTasks[projectId] = {
                 projectId,
                 projectTitle,
                 tasks: []
               };
             }
             
-            teamMembersMap[member._id].projectTasks[projectId].tasks.push({
-              _id: task._id,
+            teamMembersMap[member.id].projectTasks[projectId].tasks.push({
+              id: task.id,
               title: task.title,
               status: task.status,
               deadline: task.deadline
@@ -121,13 +201,13 @@ const getDashboardData = async (req, res) => {
     // Get generic reminders (no task-based)
     const reminders = [
       {
-        _id: 1,
+        id: 1,
         title: "Team Standup",
         time: "10:00 AM",
         date: new Date().toLocaleDateString('en-GB')
       },
       {
-        _id: 2,
+        id: 2,
         title: "Project Review",
         time: "02:00 PM",
         date: new Date().toLocaleDateString('en-GB')
@@ -168,7 +248,7 @@ const getDashboardData = async (req, res) => {
 
         // Projects list for UI (admin: all company projects; user: participant projects)
         projects: allProjects.map(p => ({
-          _id: p._id,
+          id: p.id,
           title: p.title,
           endDate: p.endDate,
           startDate: p.startDate,

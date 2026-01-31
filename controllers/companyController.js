@@ -59,7 +59,7 @@ const signupCompany = async (req, res) => {
       msg: "Company registered successfully",
       token,
       company: {
-        _id: newCompany.id,
+        id: newCompany.id,
         email: newCompany.email,
         companyName: newCompany.companyName,
         role: newCompany.role
@@ -78,7 +78,7 @@ const listCompanyUsers = async (req, res) => {
 
     if (req.userType === 'company') {
       // Company admin - use their company ID
-      companyId = req.user._id;
+      companyId = req.user.id;
     } else if (req.userType === 'user') {
       // Regular user - use their company code from the user document
       companyId = req.user.companyCode;
@@ -90,24 +90,21 @@ const listCompanyUsers = async (req, res) => {
     }
 
     // Optional pagination
-    const page = parseInt(req.query.page || '1', 10);
-    const limit = parseInt(req.query.limit || '50', 10);
-    const skip = (page - 1) * limit;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
 
     // Fetch only authorized regular users of the company
-    const userFilter = { companyCode: companyId, role: 'user' };
-    const [users, total] = await Promise.all([
-      User.findAll({
-        where: userFilter,
-        attributes: { exclude: ['password'] },
-        order: [['createdAt', 'DESC']],
-        offset: skip,
-        limit
-      }),
-      User.count({ where: userFilter })
-    ]);
+    const userFilter = { companyCode: companyId, role: 'employee' };
+    const {rows: users, count: total} = await User.findAndCountAll({
+      where: userFilter,
+      attributes: { exclude: ['password'] },
+      order: [['createdAt', 'DESC']],
+      offset: offset,
+      limit
+    });
 
-    res.json({
+    return res.json({
       page,
       limit,
       total,
