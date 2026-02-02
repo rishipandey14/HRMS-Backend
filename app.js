@@ -17,7 +17,6 @@ try {
   app.use("/api/user", require("./routes/userRoutes"));
   app.use("/api/company", require("./routes/companyRoutes"));
   app.use("/api/projects", require("./routes/projectRoutes"));
-  app.use("/api/tasks/:projectId", require("./routes/taskRoutes"));
   app.use("/api/uptimes", require("./routes/uptimeRoutes"));
   app.use("/api/notifications", require("./routes/notificationRoutes"));
   app.use("/api/dashboard", require("./routes/dashboardRoutes"));

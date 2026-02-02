@@ -142,13 +142,11 @@ const getProjectsByCompanyWithStats = async (req, res) => {
 const getProjectById = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const userId = req.user.id || req.user.id; // Handle both id and id
+    const userId = req.user.id;
     const role = req.user.role;
-    const companyCode = req.user.companyCode || req.user.id; // company accounts may use id
+    const companyCode = req.user.companyCode || req.user.id;
 
-    const project = await Project.findById(projectId)
-      .populate('participants', '-password') // Populate participants with full user data
-      .lean();
+    const project = await Project.findByPk(projectId);
     
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
@@ -158,16 +156,29 @@ const getProjectById = async (req, res) => {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
+    // participants is stored as JSON array of user IDs
+    const participantIds = Array.isArray(project.participants) ? project.participants : [];
+    
     if (
       !(role === "admin" || role === "sadmin") &&
-      (!project.participants || !project.participants.map(p => p.id || p).includes(userId))
+      !participantIds.includes(userId)
     ) {
       return res
         .status(403)
         .json({ error: "Access denied: not a participant" });
     }
 
-    return res.json(project);
+    // Fetch full user details for participants if needed
+    let projectData = project.toJSON();
+    if (participantIds.length > 0) {
+      const participantUsers = await User.findAll({
+        where: { id: participantIds },
+        attributes: { exclude: ["password"] }
+      });
+      projectData.participantDetails = participantUsers;
+    }
+
+    return res.json(projectData);
   } catch (err) {
     console.error("Error fetching project:", err);
     return res.status(500).json({ error: "Error fetching project", message: err.message });
@@ -240,17 +251,15 @@ const updateProject = async (req, res) => {
     const companyCode = req.user.companyCode || req.user.id; // company accounts may use id
     const { projectId } = req.params;
 
-    const project = await Project.findById(projectId);
+    const project = await Project.findByPk(projectId);
     if (!project) return res.status(404).json({ error: "Project not found" });
 
     if (project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
-    const updated = await Project.findByIdAndUpdate(
-      projectId,
-      { ...req.body, updatedBy: userId },
-      { new: true, runValidators: true }
+    const updated = await project.update(
+      { ...req.body, updatedBy: userId }
     );
 
     return res.json(updated);
@@ -265,14 +274,14 @@ const deleteProject = async (req, res) => {
     const companyCode = req.user.companyCode || req.user.id; // company accounts may use id
     const { projectId } = req.params;
 
-    const project = await Project.findById(projectId);
+    const project = await Project.findByPk(projectId);
     if (!project) return res.status(404).json({ error: "Project not found" });
 
     if (project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
-    await Project.findByIdAndDelete(projectId);
+    await project.destroy();
 
     return res.status(204).send();
   } catch (err) {
