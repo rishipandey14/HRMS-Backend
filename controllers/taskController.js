@@ -28,11 +28,31 @@ const getTasksByProject = async (req, res) => {
         order: [["createdAt", "DESC"]]
       });
 
+    // Populate assignedTo with user details
+    const tasksWithUsers = await Promise.all(
+      tasks.map(async (task) => {
+        const taskData = task.toJSON();
+        const assignedUserIds = Array.isArray(taskData.assignedTo) ? taskData.assignedTo : [];
+        
+        if (assignedUserIds.length > 0) {
+          const users = await User.findAll({
+            where: { id: assignedUserIds },
+            attributes: ['id', 'name', 'email']
+          });
+          taskData.assignedTo = users.map(user => user.toJSON());
+        } else {
+          taskData.assignedTo = [];
+        }
+        
+        return taskData;
+      })
+    );
+
     return res.json({
       total,
       page,
       limit,
-      tasks: tasks.map(task => task.toJSON())
+      tasks: tasksWithUsers
     });
   } catch (err) {
     console.error(err);
@@ -68,7 +88,19 @@ const getTaskById = async (req, res) => {
       });
     }
 
-    return res.json(task.toJSON());
+    // Populate assignedTo with user details
+    const taskData = task.toJSON();
+    if (assignedUserIds.length > 0) {
+      const users = await User.findAll({
+        where: { id: assignedUserIds },
+        attributes: ['id', 'name', 'email']
+      });
+      taskData.assignedTo = users.map(user => user.toJSON());
+    } else {
+      taskData.assignedTo = [];
+    }
+
+    return res.json(taskData);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Error fetching task" });
