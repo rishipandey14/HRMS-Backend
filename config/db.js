@@ -19,6 +19,29 @@ const connectDB = async () => {
     const Session = require('../models/Session');
     const Uptime = require('../models/Uptime');
     const Notification = require('../models/Notification');
+    const Plans = require('../models/Plans');
+    const CompanySubscription = require('../models/CompanySubscription');
+    const CompanyPlanOverride = require('../models/CompanyPlanOverride');
+    const PlanAddon = require('../models/PlanAddon');
+    const SubscriptionAddon = require('../models/SubscriptionAddon');
+    const Role = require('../models/Role');
+    const Permission = require('../models/Permission');
+    const RolePermission = require('../models/RolePermission');
+    const UserRole = require('../models/UserRole');
+    
+    // Chat models
+    const Chat = require('../models/Chat');
+    const Message = require('../models/Message');
+    const ChatMember = require('../models/ChatMember');
+    const ChatAdmin = require('../models/ChatAdmin');
+    const ChatArchived = require('../models/ChatArchived');
+    const ChatMuted = require('../models/ChatMuted');
+    const MessageReadStatus = require('../models/MessageReadStatus');
+    const PinnedMessage = require('../models/PinnedMessage');
+    
+    // Set up chat and message associations
+    if (Chat.setupAssociations) Chat.setupAssociations();
+    if (Message.setupAssociations) Message.setupAssociations();
     
     // Sync all models with the database
     // Note: disable alter to avoid repeated index creation hitting MySQL's key limit

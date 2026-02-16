@@ -14,7 +14,6 @@ const Company = seq.define('Company', {
 	},
 	email: {
 		type: DataTypes.STRING,
-		unique: true,
 		allowNull: false,
 		validate: {
 			isEmail: true,
@@ -43,6 +42,14 @@ const Company = seq.define('Company', {
 }, {
 	timestamps: true,
 	tableName: 'companies',
+	// Define a named unique index for email to avoid duplicated anonymous indexes
+	indexes: [
+		{
+			unique: true,
+			fields: ['email'],
+			name: 'companies_email_unique'
+		}
+	],
 	hooks: {
 		// Hash password before creating
 		beforeCreate: async (company) => {

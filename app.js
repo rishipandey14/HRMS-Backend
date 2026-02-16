@@ -20,6 +20,8 @@ try {
   app.use("/api/uptimes", require("./routes/uptimeRoutes"));
   app.use("/api/notifications", require("./routes/notificationRoutes"));
   app.use("/api/dashboard", require("./routes/dashboardRoutes"));
+  app.use("/api/chats", require("./routes/chatRoutes"));
+  app.use("/api/messages", require("./routes/messageRoutes"));
 } catch (err) {
   console.error('Error loading routes:', err.message);
   process.exit(1);

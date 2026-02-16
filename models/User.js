@@ -15,7 +15,6 @@ const User = seq.define('User', {
 	},
 	email: {
 		type: DataTypes.STRING,
-		unique: true,
 		allowNull: false,
 		validate: {
 			isEmail: true,
@@ -46,6 +45,14 @@ const User = seq.define('User', {
 }, {
 	timestamps: true,
 	tableName: 'users',
+		// Named unique index for email to avoid anonymous duplicate index creations
+		indexes: [
+			{
+				unique: true,
+				fields: ['email'],
+				name: 'users_email_unique'
+			}
+		],
 	defaultScope: {
 		attributes: { exclude: ['password'] }, // Don't return password by default
 	},
