@@ -1,5 +1,5 @@
 const { seq } = require('../config/db');
-const Plans = require('../models/Plans');
+const Plans = require('../models/Plans/Plans');
 
 const seedPlans = async () => {
 	try {
@@ -17,12 +17,13 @@ const seedPlans = async () => {
 			sortOrder: 1,
 			defaultLimits: {
 				maxEmployees: 10,
+				maxProjects: 3,
 			},
 			featureFlags: {
 				customRoles: false,
 				customPermissions: false,
 			},
-			trialDays: 15,
+			trialDays: 7,
 		});
 
 		await Plans.upsert({
@@ -35,13 +36,14 @@ const seedPlans = async () => {
 			currency: 'INR',
 			sortOrder: 2,
 			defaultLimits: {
-				maxEmployees: 50,
+				maxEmployees: 25,
+				maxProjects: 12,
 			},
 			featureFlags: {
 				customRoles: true,
 				customPermissions: true,
 			},
-			trialDays: 15,
+			trialDays: 7,
 		});
 
 		await Plans.upsert({
@@ -54,13 +56,14 @@ const seedPlans = async () => {
 			currency: 'INR',
 			sortOrder: 3,
 			defaultLimits: {
-				maxEmployees: 250,
+				maxEmployees: 100,
+				maxProjects: 50,
 			},
 			featureFlags: {
 				customRoles: true,
 				customPermissions: true,
 			},
-			trialDays: 15,
+			trialDays: 7,
 		});
 
 		console.log('Plans seeded');

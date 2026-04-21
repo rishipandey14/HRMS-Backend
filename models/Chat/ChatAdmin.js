@@ -1,17 +1,17 @@
-const { seq } = require('../config/db');
+﻿const { seq } = require('../../config/db');
 const { DataTypes } = require('sequelize');
 
-const MessageReadStatus = seq.define('MessageReadStatus', {
+const ChatAdmin = seq.define('ChatAdmin', {
     id: {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
     },
-    messageId: {
+    chatId: {
         type: DataTypes.UUID,
         allowNull: false,
         references: {
-            model: 'Messages',
+            model: 'Chats',
             key: 'id',
         },
         onDelete: 'CASCADE',
@@ -25,13 +25,10 @@ const MessageReadStatus = seq.define('MessageReadStatus', {
         },
         onDelete: 'CASCADE',
     },
-    status: {
-        type: DataTypes.ENUM('sent', 'delivered', 'seen'),
-        defaultValue: 'sent',
-    },
 }, {
     timestamps: true,
-    tableName: 'MessageReadStatus',
+    tableName: 'ChatAdmins',
 });
 
-module.exports = MessageReadStatus;
+module.exports = ChatAdmin;
+

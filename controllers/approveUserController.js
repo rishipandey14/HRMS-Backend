@@ -1,8 +1,10 @@
 // controllers/approveUserController.js
 
-const User = require('../models/User');
-const Notification = require('../models/Notification');
+const User = require('../models/User/User');
+const Notification = require('../models/Others/Notification');
 const { seq } = require('../config/db');
+const { publishNotificationToAdmin } = require('../services/notificationSseService');
+const { validateSubscriptionCapacity } = require('../services/subscriptionService');
 
 // Approve or reject user
 const approveUser = async (req, res) => {
@@ -27,6 +29,14 @@ const approveUser = async (req, res) => {
     const newRole = action === 'approve' ? 'employee' : 'unauthorized';
     const notificationStatus = action === 'approve' ? 'approved' : 'rejected';
 
+    if (action === 'approve') {
+      const access = await validateSubscriptionCapacity(user.companyCode, 'employee');
+      if (!access.allowed) {
+        await transaction.rollback();
+        return res.status(access.status).json({ msg: access.message, subscription: access.context });
+      }
+    }
+
     // Update user role
     await user.update({ role: newRole }, { transaction });
 
@@ -39,8 +49,22 @@ const approveUser = async (req, res) => {
       }
     );
 
+    const updatedNotification = await Notification.findOne({
+      where: { userId, type: 'user_approval' },
+      order: [['updatedAt', 'DESC']],
+      transaction,
+    });
+
     // Commit transaction
     await transaction.commit();
+
+    if (updatedNotification) {
+      publishNotificationToAdmin({
+        companyCode: user.companyCode,
+        event: 'notification.updated',
+        notification: updatedNotification.get({ plain: true }),
+      });
+    }
 
     res.status(200).json({ 
       msg: `User ${action}d successfully`, 

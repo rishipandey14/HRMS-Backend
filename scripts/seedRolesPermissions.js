@@ -1,8 +1,8 @@
 const { seq } = require('../config/db');
-const Company = require('../models/Company');
-const Role = require('../models/Role');
-const Permission = require('../models/Permission');
-const RolePermission = require('../models/RolePermission');
+const Company = require('../models/Company/Company');
+const Role = require('../models/RolesAndPermission/Role');
+const Permission = require('../models/RolesAndPermission/Permission');
+const RolePermission = require('../models/RolesAndPermission/RolePermission');
 
 const permissions = [
 	{ key: 'user.read', label: 'Read users' },

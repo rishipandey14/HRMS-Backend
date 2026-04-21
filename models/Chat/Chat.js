@@ -1,4 +1,4 @@
-const { seq } = require('../config/db');
+﻿const { seq } = require('../../config/db');
 const { DataTypes } = require('sequelize');
 
 const Chat = seq.define('Chat', {
@@ -42,7 +42,7 @@ const Chat = seq.define('Chat', {
 
 // Associations will be set up in db.js after all models are imported
 Chat.setupAssociations = function() {
-    const User = require('./User');
+    const User = require('../User/User');
     const Message = require('./Message');
     const ChatMember = require('./ChatMember');
     const ChatAdmin = require('./ChatAdmin');

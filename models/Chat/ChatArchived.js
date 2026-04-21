@@ -1,7 +1,7 @@
-const { seq } = require('../config/db');
+﻿const { seq } = require('../../config/db');
 const { DataTypes } = require('sequelize');
 
-const ChatAdmin = seq.define('ChatAdmin', {
+const ChatArchived = seq.define('ChatArchived', {
     id: {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
@@ -27,7 +27,8 @@ const ChatAdmin = seq.define('ChatAdmin', {
     },
 }, {
     timestamps: true,
-    tableName: 'ChatAdmins',
+    tableName: 'ChatArchived',
 });
 
-module.exports = ChatAdmin;
+module.exports = ChatArchived;
+

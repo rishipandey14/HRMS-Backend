@@ -1,5 +1,5 @@
-const { DataTypes } = require('sequelize');
-const { seq } = require('../config/db');
+﻿const { DataTypes } = require('sequelize');
+const { seq } = require('../../config/db');
 
 const Notification = seq.define('Notification', {
 	id: {
@@ -53,3 +53,4 @@ const Notification = seq.define('Notification', {
 });
 
 module.exports = Notification;
+

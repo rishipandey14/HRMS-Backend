@@ -4,7 +4,7 @@ const messageEvents = require("./events/message");
 const typingEvents = require("./events/typing");
 const seenEvents = require("./events/seen");
 const userEvents = require("./events/user");
-const Chat = require("../models/Chat");
+const Chat = require("../models/Chat/Chat");
 
 // Use localhost for local dev, task-tracker-backend for Docker
 const TASK_TRACKER_URL = process.env.TASK_TRACKER_URL || 

@@ -1,5 +1,5 @@
-const Company = require('../models/Company');
-const User = require('../models/User');
+const Company = require('../models/Company/Company');
+const User = require('../models/User/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { createSessionForUser, endSessionForUser } = require('../services/sessionService');

@@ -1,9 +1,11 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-const User = require("../models/User");
-const Company = require("../models/Company");
-const Notification = require('../models/Notification');
+const User = require("../models/User/User");
+const Company = require("../models/Company/Company");
+const Notification = require('../models/Others/Notification');
+const { publishNotificationToAdmin } = require('../services/notificationSseService');
+const { validateSubscriptionCapacity } = require('../services/subscriptionService');
 
 // Store secret in env in production
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key";
@@ -26,6 +28,11 @@ const signupUser = async (req, res) => {
     const company = await Company.findByPk(companyCode);
     if (!company) {
       return res.status(400).json({ msg: "Invalid company code: No such company found" });
+    }
+
+    const access = await validateSubscriptionCapacity(companyCode, 'employee_request');
+    if (!access.allowed) {
+      return res.status(access.status).json({ msg: access.message, subscription: access.context });
     }
 
     // Check if email already exists for this company 
@@ -57,6 +64,12 @@ const signupUser = async (req, res) => {
         status: 'pending'
       });
       console.log('Notification created:', notification);
+
+      publishNotificationToAdmin({
+        companyCode,
+        event: 'notification.created',
+        notification: notification.get({ plain: true }),
+      });
     } catch (notifError) {
       console.error('Failed to create notification:', notifError);
     }

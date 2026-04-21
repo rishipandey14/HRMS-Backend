@@ -1,7 +1,7 @@
 const { seq } = require('../config/db');
-const Company = require('../models/Company');
-const Plans = require('../models/Plans');
-const CompanySubscription = require('../models/CompanySubscription');
+const Company = require('../models/Company/Company');
+const Plans = require('../models/Plans/Plans');
+const CompanySubscription = require('../models/Plans/CompanySubscription');
 
 const migrateCompaniesToBasic = async () => {
 	try {
@@ -22,11 +22,17 @@ const migrateCompaniesToBasic = async () => {
 				continue;
 			}
 
+			const startsAt = company.createdAt || new Date();
+			const endsAt = new Date(startsAt);
+			endsAt.setDate(endsAt.getDate() + 7);
+
 			await CompanySubscription.create({
 				companyId,
 				planId: basicPlan.id,
 				status: 'active',
-				autoRenew: true,
+				startsAt,
+				endsAt,
+				autoRenew: false,
 			});
 		}
 

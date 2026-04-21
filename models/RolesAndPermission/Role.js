@@ -1,5 +1,5 @@
-const { DataTypes } = require('sequelize');
-const { seq } = require('../config/db');
+﻿const { DataTypes } = require('sequelize');
+const { seq } = require('../../config/db');
 
 const Role = seq.define('Role', {
 	id: {
@@ -39,3 +39,4 @@ const Role = seq.define('Role', {
 });
 
 module.exports = Role;
+

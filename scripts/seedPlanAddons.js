@@ -1,5 +1,5 @@
 const { seq } = require('../config/db');
-const PlanAddon = require('../models/PlanAddon');
+const PlanAddon = require('../models/Plans/PlanAddon');
 
 const seedPlanAddons = async () => {
 	try {

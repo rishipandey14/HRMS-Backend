@@ -1,4 +1,4 @@
-const { seq } = require('../config/db');
+﻿const { seq } = require('../../config/db');
 const { DataTypes } = require('sequelize');
 
 const ChatMuted = seq.define('ChatMuted', {
@@ -31,3 +31,4 @@ const ChatMuted = seq.define('ChatMuted', {
 });
 
 module.exports = ChatMuted;
+

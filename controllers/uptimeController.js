@@ -1,4 +1,4 @@
-const Uptime = require("../models/Uptime");
+const Uptime = require("../models/Others/Uptime");
 const parsePagination = require("../utils/pagination");
 
 /**

@@ -1,9 +1,10 @@
 const { Op } = require('sequelize');
 const { seq } = require('../config/db');
-const Project = require("../models/Project");
-const Task = require("../models/Task");
-const User = require("../models/User");
+const Project = require("../models/Project/Project");
+const Task = require("../models/Project/Task");
+const User = require("../models/User/User");
 const parsePagination = require("../utils/pagination");
+const { validateSubscriptionCapacity } = require('../services/subscriptionService');
 
 const getProjectsByCompany = async (req, res) => {
   try {
@@ -191,6 +192,11 @@ const createProject = async (req, res) => {
     const userType = req.userType || req.user.type;
     // For company accounts, use id; for users, use companyCode
     const companyId = req.user.companyCode || req.user.id;
+
+    const access = await validateSubscriptionCapacity(companyId, 'project');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.message, subscription: access.context });
+    }
 
     // Generate unique 4-digit project ID
     let projectId, idTaken;

@@ -1,4 +1,4 @@
-const MessageReadStatus = require("../../models/MessageReadStatus");
+const MessageReadStatus = require("../../models/Chat/MessageReadStatus");
 
 function seenEvents(io, socket) {
   socket.on("message_seen", async (data) => {

@@ -1,6 +1,6 @@
-const Task = require("../models/Task");
-const Project = require("../models/Project");
-const User = require("../models/User");
+const Task = require("../models/Project/Task");
+const Project = require("../models/Project/Project");
+const User = require("../models/User/User");
 const parsePagination = require("../utils/pagination");
 
 const getTasksByProject = async (req, res) => {

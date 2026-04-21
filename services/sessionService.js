@@ -1,5 +1,5 @@
-const Session = require("../models/Session");
-const Uptime = require("../models/Uptime");
+const Session = require("../models/Others/Session");
+const Uptime = require("../models/Others/Uptime");
 const { getISOWeekString, getWeekDayName } = require("../utils/dateUtils");
 
 // Creates a new login session for a user or company.

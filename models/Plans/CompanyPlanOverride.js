@@ -1,5 +1,5 @@
-const { DataTypes } = require('sequelize');
-const { seq } = require('../config/db');
+﻿const { DataTypes } = require('sequelize');
+const { seq } = require('../../config/db');
 
 const CompanyPlanOverride = seq.define('CompanyPlanOverride', {
 	companyId: {
@@ -26,3 +26,4 @@ const CompanyPlanOverride = seq.define('CompanyPlanOverride', {
 });
 
 module.exports = CompanyPlanOverride;
+

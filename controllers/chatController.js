@@ -1,13 +1,13 @@
 const { sequelize } = require('sequelize');
-const Chat = require("../models/Chat");
-const Message = require("../models/Message");
-const MessageReadStatus = require("../models/MessageReadStatus");
-const ChatMember = require("../models/ChatMember");
-const ChatAdmin = require("../models/ChatAdmin");
-const ChatArchived = require("../models/ChatArchived");
-const ChatMuted = require("../models/ChatMuted");
-const PinnedMessage = require("../models/PinnedMessage");
-const User = require("../models/User");
+const Chat = require("../models/Chat/Chat");
+const Message = require("../models/Chat/Message");
+const MessageReadStatus = require("../models/Chat/MessageReadStatus");
+const ChatMember = require("../models/Chat/ChatMember");
+const ChatAdmin = require("../models/Chat/ChatAdmin");
+const ChatArchived = require("../models/Chat/ChatArchived");
+const ChatMuted = require("../models/Chat/ChatMuted");
+const PinnedMessage = require("../models/Chat/PinnedMessage");
+const User = require("../models/User/User");
 const { Op } = require("sequelize");
 
 // @desc    Create new group chat
@@ -62,14 +62,49 @@ const createGroupChat = async (req, res) => {
 const createDirectChat = async (req, res) => {
   const { members } = req.body;
 
+  if (req.userType === 'company') {
+    return res.status(403).json({
+      message: 'Company accounts cannot create direct chats. Please login as a user account.',
+    });
+  }
+
   if (!members || !Array.isArray(members) || members.length !== 2) {
     return res.status(400).json({ message: "Direct chat must have exactly 2 members" });
   }
 
   try {
+    const normalizedMembers = members.map((id) => Number(id));
+
+    if (normalizedMembers.some((id) => !Number.isInteger(id) || id <= 0)) {
+      return res.status(400).json({
+        message: "Direct chat members must be valid user IDs",
+      });
+    }
+
+    if (new Set(normalizedMembers).size !== 2) {
+      return res.status(400).json({
+        message: "Direct chat must include two different members",
+      });
+    }
+
+    const existingUsers = await User.findAll({
+      where: {
+        id: {
+          [Op.in]: normalizedMembers,
+        },
+      },
+      attributes: ["id"],
+    });
+
+    if (existingUsers.length !== 2) {
+      return res.status(400).json({
+        message: "One or more members do not exist as users",
+      });
+    }
+
     // Check if a direct chat already exists between these two users
     const memberships = await ChatMember.findAll({
-      where: { userId: members },
+      where: { userId: normalizedMembers },
       attributes: ['chatId', 'userId'],
     });
 
@@ -82,7 +117,7 @@ const createDirectChat = async (req, res) => {
 
     for (const cid of Object.keys(chatMemberMap)) {
       const set = chatMemberMap[cid];
-      if (set.has(members[0]) && set.has(members[1]) && set.size === 2) {
+      if (set.has(normalizedMembers[0]) && set.has(normalizedMembers[1]) && set.size === 2) {
         const candidate = await Chat.findByPk(cid);
         if (candidate && candidate.isGroup === false) {
           return res.status(200).json(candidate);
@@ -96,7 +131,7 @@ const createDirectChat = async (req, res) => {
     });
 
     // Add members
-    for (const memberId of members) {
+    for (const memberId of normalizedMembers) {
       await ChatMember.create({
         chatId: directChat.id,
         userId: memberId,

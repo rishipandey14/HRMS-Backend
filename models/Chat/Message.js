@@ -1,4 +1,4 @@
-const { seq } = require('../config/db');
+const { seq } = require('../../config/db');
 const { DataTypes } = require('sequelize');
 
 const Message = seq.define('Message', {
@@ -86,7 +86,7 @@ const Message = seq.define('Message', {
 // Associations will be set up in db.js
 Message.setupAssociations = function() {
     const Chat = require('./Chat');
-    const User = require('./User');
+    const User = require('../User/User');
     const MessageReadStatus = require('./MessageReadStatus');
 
     Message.belongsTo(Chat, { foreignKey: 'chatId', as: 'chat' });

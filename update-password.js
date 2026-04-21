@@ -1,5 +1,5 @@
 const { seq } = require('./config/db');
-const Company = require('./models/Company');
+const Company = require('./models/Company/Company');
 const bcrypt = require('bcryptjs');
 
 (async () => {

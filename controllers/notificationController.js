@@ -1,4 +1,10 @@
-const Notification = require('../models/Notification');
+const Notification = require('../models/Others/Notification');
+const {
+  addClient,
+  removeClient,
+  publishNotificationToAdmin,
+  writeEvent,
+} = require('../services/notificationSseService');
 
 // Get notifications for a company (admin)
 const getNotifications = async (req, res) => {
@@ -29,12 +35,51 @@ const getNotifications = async (req, res) => {
   }
 };
 
+const streamNotifications = async (req, res) => {
+  try {
+    if (req.userRole !== 'admin') {
+      return res.status(403).json({ msg: 'Only admins can stream notifications' });
+    }
+
+    const companyCode = req.user.companyCode || req.user.id;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    res.flushHeaders?.();
+    res.write('retry: 5000\n\n');
+
+    const key = addClient({ companyCode, role: 'admin', res });
+    writeEvent(res, 'notification.connected', { ok: true, companyCode });
+
+    const heartbeat = setInterval(() => {
+      res.write(': keep-alive\n\n');
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      removeClient({ key, res });
+      res.end();
+    });
+  } catch (error) {
+    console.error('Stream notifications error:', error);
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
 // Mark notification as read
 const markAsRead = async (req, res) => {
   try {
-    const { notificationId } = req.params;
+    if (req.userRole !== 'admin') {
+      return res.status(403).json({ msg: 'Only admins can update notifications' });
+    }
 
-    const notification = await Notification.findByPk(notificationId);
+    const { notificationId } = req.params;
+    const companyCode = req.user.companyCode || req.user.id;
+
+    const notification = await Notification.findOne({ where: { id: notificationId, companyCode } });
 
     if (!notification) {
       return res.status(404).json({ msg: 'Notification not found' });
@@ -43,9 +88,11 @@ const markAsRead = async (req, res) => {
     notification.isRead = true;
     await notification.save();
 
-    if (!notification) {
-      return res.status(404).json({ msg: 'Notification not found' });
-    }
+    publishNotificationToAdmin({
+      companyCode,
+      event: 'notification.updated',
+      notification: notification.get({ plain: true }),
+    });
 
     res.json({ notification });
   } catch (error) {
@@ -56,5 +103,6 @@ const markAsRead = async (req, res) => {
 
 module.exports = {
   getNotifications,
+  streamNotifications,
   markAsRead
 };

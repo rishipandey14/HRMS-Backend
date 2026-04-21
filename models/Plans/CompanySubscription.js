@@ -1,5 +1,5 @@
-const { DataTypes } = require('sequelize');
-const { seq } = require('../config/db');
+﻿const { DataTypes } = require('sequelize');
+const { seq } = require('../../config/db');
 
 const CompanySubscription = seq.define('CompanySubscription', {
 	id: {
@@ -56,3 +56,4 @@ const CompanySubscription = seq.define('CompanySubscription', {
 });
 
 module.exports = CompanySubscription;
+

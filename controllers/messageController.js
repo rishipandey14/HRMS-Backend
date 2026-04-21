@@ -1,7 +1,7 @@
-const Message = require("../models/Message");
-const Chat = require("../models/Chat");
-const ChatMember = require("../models/ChatMember");
-const MessageReadStatus = require("../models/MessageReadStatus");
+const Message = require("../models/Chat/Message");
+const Chat = require("../models/Chat/Chat");
+const ChatMember = require("../models/Chat/ChatMember");
+const MessageReadStatus = require("../models/Chat/MessageReadStatus");
 const { Op } = require("sequelize");
 
 // @desc    Send a new message

@@ -1,20 +1,11 @@
-const { seq } = require('../config/db');
+﻿const { seq } = require('../../config/db');
 const { DataTypes } = require('sequelize');
 
-const PinnedMessage = seq.define('PinnedMessage', {
+const MessageReadStatus = seq.define('MessageReadStatus', {
     id: {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
-    },
-    chatId: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'Chats',
-            key: 'id',
-        },
-        onDelete: 'CASCADE',
     },
     messageId: {
         type: DataTypes.UUID,
@@ -25,9 +16,23 @@ const PinnedMessage = seq.define('PinnedMessage', {
         },
         onDelete: 'CASCADE',
     },
+    userId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'users',
+            key: 'id',
+        },
+        onDelete: 'CASCADE',
+    },
+    status: {
+        type: DataTypes.ENUM('sent', 'delivered', 'seen'),
+        defaultValue: 'sent',
+    },
 }, {
     timestamps: true,
-    tableName: 'PinnedMessages',
+    tableName: 'MessageReadStatus',
 });
 
-module.exports = PinnedMessage;
+module.exports = MessageReadStatus;
+

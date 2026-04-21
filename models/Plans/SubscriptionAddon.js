@@ -1,5 +1,5 @@
-const { DataTypes } = require('sequelize');
-const { seq } = require('../config/db');
+﻿const { DataTypes } = require('sequelize');
+const { seq } = require('../../config/db');
 
 const SubscriptionAddon = seq.define('SubscriptionAddon', {
 	id: {
@@ -52,3 +52,4 @@ const SubscriptionAddon = seq.define('SubscriptionAddon', {
 });
 
 module.exports = SubscriptionAddon;
+

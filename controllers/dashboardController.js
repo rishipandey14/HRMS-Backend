@@ -1,9 +1,9 @@
 const { Op } = require('sequelize');
 const { seq } = require('../config/db');
-const Project = require("../models/Project");
-const Task = require("../models/Task");
-const User = require("../models/User");
-const Uptime = require("../models/Uptime");
+const Project = require("../models/Project/Project");
+const Task = require("../models/Project/Task");
+const User = require("../models/User/User");
+const Uptime = require("../models/Others/Uptime");
 
 const getDashboardData = async (req, res) => {
   try {

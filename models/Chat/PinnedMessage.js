@@ -1,7 +1,7 @@
-const { seq } = require('../config/db');
+﻿const { seq } = require('../../config/db');
 const { DataTypes } = require('sequelize');
 
-const ChatArchived = seq.define('ChatArchived', {
+const PinnedMessage = seq.define('PinnedMessage', {
     id: {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
@@ -16,18 +16,19 @@ const ChatArchived = seq.define('ChatArchived', {
         },
         onDelete: 'CASCADE',
     },
-    userId: {
-        type: DataTypes.INTEGER,
+    messageId: {
+        type: DataTypes.UUID,
         allowNull: false,
         references: {
-            model: 'users',
+            model: 'Messages',
             key: 'id',
         },
         onDelete: 'CASCADE',
     },
 }, {
     timestamps: true,
-    tableName: 'ChatArchived',
+    tableName: 'PinnedMessages',
 });
 
-module.exports = ChatArchived;
+module.exports = PinnedMessage;
+

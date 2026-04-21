@@ -1,7 +1,12 @@
-const Company = require("../models/Company");
-const User = require("../models/User");
+const Company = require("../models/Company/Company");
+const User = require("../models/User/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { seq } = require('../config/db');
+const {
+  createTrialSubscription,
+  getSubscriptionContext,
+} = require('../services/subscriptionService');
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret"; // Use .env in production
 
@@ -19,12 +24,15 @@ const generateCompanyId = async () => {
 
 // Company signup controller
 const signupCompany = async (req, res) => {
+  const transaction = await seq.transaction();
+
   try {
     const { companyName, email, address, companyType, password } = req.body;
 
     // Check if company already exists
     const existingCompany = await Company.findOne({ where: { email } });
     if (existingCompany) {
+      await transaction.rollback();
       return res.status(400).json({ msg: "Company already exists" });
     }
 
@@ -41,7 +49,13 @@ const signupCompany = async (req, res) => {
       companyType,
       password, // Pass plain password - model will hash it
       role: "admin"
-    });
+    }, { transaction });
+
+    const subscription = await createTrialSubscription(newCompany.id, transaction, newCompany.createdAt);
+
+    await transaction.commit();
+
+    const subscriptionContext = await getSubscriptionContext(newCompany.id);
 
     // Generate JWT token
     const token = jwt.sign(
@@ -63,9 +77,11 @@ const signupCompany = async (req, res) => {
         email: newCompany.email,
         companyName: newCompany.companyName,
         role: newCompany.role
-      }
+      },
+      subscription: subscriptionContext ? subscriptionContext.serialized : null,
     });
   } catch (error) {
+    await transaction.rollback().catch(() => {});
     res.status(500).json({ msg: "Error registering company", error: error.message });
   }
 };
