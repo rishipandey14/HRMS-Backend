@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const {
   sendMessage,
   getMessagesByChat,
@@ -10,11 +11,11 @@ const {
   getUnreadCount,
 } = require("../controllers/messageController");
 
-router.post("/", authMiddleware, sendMessage);
-router.get("/:chatId", authMiddleware, getMessagesByChat);
-router.get("/:chatId/unread", authMiddleware, getUnreadCount);
-router.put("/:id", authMiddleware, editMessage);
-router.delete("/:id", authMiddleware, deleteMessage);
-router.put("/:id/seen", authMiddleware, markMessageSeen);
+router.post("/", authMiddleware, requirePermission('message.create'), sendMessage);
+router.get("/:chatId", authMiddleware, requirePermission('message.view'), getMessagesByChat);
+router.get("/:chatId/unread", authMiddleware, requirePermission('message.view'), getUnreadCount);
+router.put("/:id", authMiddleware, requirePermission('message.update'), editMessage);
+router.delete("/:id", authMiddleware, requirePermission('message.delete'), deleteMessage);
+router.put("/:id/seen", authMiddleware, requirePermission('message.update'), markMessageSeen);
 
 module.exports = router;

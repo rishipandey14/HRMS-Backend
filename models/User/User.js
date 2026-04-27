@@ -39,7 +39,7 @@ const User = seq.define('User', {
 		onUpdate: 'CASCADE',
 	},
 	role: {
-		type: DataTypes.ENUM('employee', 'manager', 'admin', 'sadmin', 'unauthorized'),
+		type: DataTypes.STRING,
 		defaultValue: 'unauthorized',
 	},
 }, {

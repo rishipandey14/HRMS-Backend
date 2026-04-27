@@ -23,6 +23,7 @@ try {
   app.use("/api/dashboard", require("./routes/dashboardRoutes"));
   app.use("/api/chats", require("./routes/chatRoutes"));
   app.use("/api/messages", require("./routes/messageRoutes"));
+  app.use('/api/rbac', require('./routes/rbacRoutes'));
 } catch (err) {
   console.error('Error loading routes:', err.message);
   process.exit(1);

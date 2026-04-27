@@ -3,6 +3,11 @@ const Project = require("../models/Project/Project");
 const User = require("../models/User/User");
 const parsePagination = require("../utils/pagination");
 
+const hasTaskUpdatePermission = (req) => {
+  const permissionKeys = req.rbac?.permissionKeys || [];
+  return req.rbac?.isAllAccess || permissionKeys.includes('task.update') || permissionKeys.includes('task.manage');
+};
+
 const getTasksByProject = async (req, res) => {
   try {
     const projectId = req.params.projectId;
@@ -181,7 +186,7 @@ const updateTask = async (req, res) => {
       return res.status(403).json({ error: "Access denied: wrong project or company" });
     }
 
-    const isAdmin = role === "admin" || role === "sadmin";
+    const isAdmin = role === "admin" || role === "sadmin" || hasTaskUpdatePermission(req);
     const assignedUserIds = Array.isArray(task.assignedTo) ? task.assignedTo : [];
     const isAssignee = assignedUserIds.includes(userId);
 

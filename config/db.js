@@ -27,6 +27,52 @@ const resolveSyncOptions = () => {
   return { alter: false };
 };
 
+const ensureRoleHierarchySchema = async () => {
+  const queryInterface = seq.getQueryInterface();
+  const roleTable = await queryInterface.describeTable('roles');
+
+  if (roleTable.parentRoleId) {
+    return;
+  }
+
+  await queryInterface.addColumn('roles', 'parentRoleId', {
+    type: Sequelize.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'roles',
+      key: 'id',
+    },
+    onDelete: 'SET NULL',
+    onUpdate: 'CASCADE',
+  });
+
+  console.log('Added missing roles.parentRoleId column');
+};
+
+const ensureUserRoleColumnSize = async () => {
+  const queryInterface = seq.getQueryInterface();
+  const userTable = await queryInterface.describeTable('users');
+  const roleColumn = userTable.role;
+
+  if (!roleColumn) {
+    return;
+  }
+
+  // Check if the column is too small (typically VARCHAR(1) or VARCHAR(5))
+  // Role names like 'senior_manager' need at least 15 chars, so expand to 50 to be safe
+  if (roleColumn.type && roleColumn.type.includes('VARCHAR') && roleColumn.type.match(/\((\d+)\)/)) {
+    const match = roleColumn.type.match(/\((\d+)\)/);
+    const currentLength = parseInt(match[1], 10);
+    if (currentLength < 50) {
+      await queryInterface.changeColumn('users', 'role', {
+        type: Sequelize.STRING(50),
+        defaultValue: 'unauthorized',
+      });
+      console.log(`Expanded users.role column from VARCHAR(${currentLength}) to VARCHAR(50)`);
+    }
+  }
+};
+
 const connectDB = async () => {
   try {
     await seq.authenticate();
@@ -50,6 +96,39 @@ const connectDB = async () => {
     const Permission = require('../models/RolesAndPermission/Permission');
     const RolePermission = require('../models/RolesAndPermission/RolePermission');
     const UserRole = require('../models/User/UserRole');
+
+    // RBAC associations
+    Role.belongsTo(Company, { foreignKey: 'companyId' });
+    Company.hasMany(Role, { foreignKey: 'companyId' });
+
+    Role.belongsToMany(Permission, {
+      through: RolePermission,
+      foreignKey: 'roleId',
+      otherKey: 'permissionId',
+      as: 'permissions',
+    });
+    Permission.belongsToMany(Role, {
+      through: RolePermission,
+      foreignKey: 'permissionId',
+      otherKey: 'roleId',
+      as: 'roles',
+    });
+
+    Role.belongsTo(Role, { foreignKey: 'parentRoleId', as: 'parentRole' });
+    Role.hasMany(Role, { foreignKey: 'parentRoleId', as: 'childRoles' });
+
+    User.belongsToMany(Role, {
+      through: UserRole,
+      foreignKey: 'userId',
+      otherKey: 'roleId',
+      as: 'rbacRoles',
+    });
+    Role.belongsToMany(User, {
+      through: UserRole,
+      foreignKey: 'roleId',
+      otherKey: 'userId',
+      as: 'users',
+    });
     
     // Chat models
     const Chat = require('../models/Chat/Chat');
@@ -66,6 +145,9 @@ const connectDB = async () => {
     if (Message.setupAssociations) Message.setupAssociations();
     
     // Keep schema sync opt-in to avoid expensive startup DDL on every boot.
+    await ensureRoleHierarchySchema();
+    await ensureUserRoleColumnSize();
+
     const syncOptions = resolveSyncOptions();
     if (syncOptions) {
       await seq.sync(syncOptions);

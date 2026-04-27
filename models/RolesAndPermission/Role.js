@@ -19,6 +19,16 @@ const Role = seq.define('Role', {
 		type: DataTypes.STRING,
 		allowNull: false,
 	},
+	parentRoleId: {
+		type: DataTypes.INTEGER,
+		allowNull: true,
+		references: {
+			model: 'roles',
+			key: 'id',
+		},
+		onDelete: 'SET NULL',
+		onUpdate: 'CASCADE',
+	},
 	isSystem: {
 		type: DataTypes.BOOLEAN,
 		allowNull: false,
@@ -35,6 +45,8 @@ const Role = seq.define('Role', {
 	indexes: [
 		{ fields: ['companyId'] },
 		{ fields: ['name'] },
+		{ fields: ['parentRoleId'] },
+		{ unique: true, fields: ['companyId', 'name'], name: 'roles_company_name_unique' },
 	],
 });
 

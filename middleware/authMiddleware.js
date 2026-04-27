@@ -40,7 +40,7 @@ const authMiddleware = async (req, res, next) => {
     req.user.companyCode = decoded.companyCode || req.user.companyCode || req.user.companyId || req.user.id;
 
     req.userType = decoded.type; // 'user' or 'company'
-    req.userRole = decoded.role; // 'admin', 'sadmin', etc.
+    req.userRole = req.user.role || decoded.role; // keep current DB role as source of truth
 
     next();
   } catch (err) {

@@ -7,6 +7,7 @@ const {
   createTrialSubscription,
   getSubscriptionContext,
 } = require('../services/subscriptionService');
+const { seedSystemRolesForCompany, createSAdminRoleForCompany } = require('../services/rbacService');
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret"; // Use .env in production
 
@@ -54,6 +55,11 @@ const signupCompany = async (req, res) => {
     const subscription = await createTrialSubscription(newCompany.id, transaction, newCompany.createdAt);
 
     await transaction.commit();
+
+    await seedSystemRolesForCompany(newCompany.id);
+    
+    // Create sAdmin role with all permissions
+    await createSAdminRoleForCompany(newCompany.id);
 
     const subscriptionContext = await getSubscriptionContext(newCompany.id);
 
@@ -109,9 +115,13 @@ const listCompanyUsers = async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 50;
     const offset = (page - 1) * limit;
+    const includeAllRoles = String(req.query.includeAllRoles || 'false').toLowerCase() === 'true';
 
-    // Fetch only authorized regular users of the company
-    const userFilter = { companyCode: companyId, role: 'employee' };
+    // Default behavior keeps existing employee-only listing for existing screens.
+    // Access control can opt into full list to reassign any role.
+    const userFilter = includeAllRoles
+      ? { companyCode: companyId }
+      : { companyCode: companyId, role: 'employee' };
     const {rows: users, count: total} = await User.findAndCountAll({
       where: userFilter,
       attributes: { exclude: ['password'] },

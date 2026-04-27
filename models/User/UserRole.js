@@ -33,6 +33,7 @@ const UserRole = seq.define('UserRole', {
 	indexes: [
 		{ fields: ['userId'] },
 		{ fields: ['roleId'] },
+		{ unique: true, fields: ['userId', 'roleId'], name: 'user_roles_unique_pair' },
 	],
 });
 

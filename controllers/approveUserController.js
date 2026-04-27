@@ -3,6 +3,8 @@
 const User = require('../models/User/User');
 const Notification = require('../models/Others/Notification');
 const { seq } = require('../config/db');
+const Role = require('../models/RolesAndPermission/Role');
+const { ensureUserRoleAssignment, seedSystemRolesForCompany } = require('../services/rbacService');
 const { publishNotificationToAdmin } = require('../services/notificationSseService');
 const { validateSubscriptionCapacity } = require('../services/subscriptionService');
 
@@ -39,6 +41,22 @@ const approveUser = async (req, res) => {
 
     // Update user role
     await user.update({ role: newRole }, { transaction });
+
+    if (action === 'approve') {
+      await seedSystemRolesForCompany(user.companyCode);
+      const employeeRole = await Role.findOne({
+        where: { companyId: user.companyCode, name: 'employee' },
+        transaction,
+      });
+
+      if (employeeRole) {
+        await ensureUserRoleAssignment({
+          userId: user.id,
+          roleId: employeeRole.id,
+          transaction,
+        });
+      }
+    }
 
     // Update related notification status
     await Notification.update(

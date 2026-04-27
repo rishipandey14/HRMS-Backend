@@ -29,6 +29,7 @@ const RolePermission = seq.define('RolePermission', {
 	indexes: [
 		{ fields: ['roleId'] },
 		{ fields: ['permissionId'] },
+		{ unique: true, fields: ['roleId', 'permissionId'], name: 'role_permissions_unique_pair' },
 	],
 });
 

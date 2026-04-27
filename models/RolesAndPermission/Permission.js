@@ -10,7 +10,6 @@ const Permission = seq.define('Permission', {
 	key: {
 		type: DataTypes.STRING,
 		allowNull: false,
-		allowNull: false,
 	},
 	label: {
 		type: DataTypes.STRING,

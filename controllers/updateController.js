@@ -4,6 +4,11 @@ const Project = require("../models/Project/Project");
 const User = require("../models/User/User");
 const parsePagination = require("../utils/pagination");
 
+const hasUpdatePermission = (req, permissionKey) => {
+  const permissionKeys = req.rbac?.permissionKeys || [];
+  return req.rbac?.isAllAccess || permissionKeys.includes(permissionKey) || permissionKeys.includes('update.manage');
+};
+
 const getUpdatesByTask = async (req, res) => {
   try {
     const taskId = req.params.taskId;
@@ -191,7 +196,7 @@ const updateUpdate = async (req, res) => {
     const { updateId } = req.params;
     const role = req.user.role;
 
-    if (!(role === "admin" || role === "sadmin")) {
+    if (!(role === "admin" || role === "sadmin") && !hasUpdatePermission(req, 'update.update')) {
       return res.status(403).json({ error: "Access denied: admin only" });
     }
 
@@ -227,7 +232,7 @@ const deleteUpdate = async (req, res) => {
     const { updateId } = req.params;
     const role = req.user.role;
 
-    if (!(role === "admin" || role === "sadmin")) {
+    if (!(role === "admin" || role === "sadmin") && !hasUpdatePermission(req, 'update.delete')) {
       return res.status(403).json({ error: "Access denied: admin only" });
     }
 

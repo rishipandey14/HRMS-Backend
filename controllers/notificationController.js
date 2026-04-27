@@ -9,11 +9,6 @@ const {
 // Get notifications for a company (admin)
 const getNotifications = async (req, res) => {
   try {
-    // Only admins can view notifications
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({ msg: 'Only admins can view notifications' });
-    }
-
     // For Company users, use id as companyCode; for regular users, use companyCode
     const companyCode = req.user.companyCode || req.user.id;
     const { type, status } = req.query;
@@ -37,10 +32,6 @@ const getNotifications = async (req, res) => {
 
 const streamNotifications = async (req, res) => {
   try {
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({ msg: 'Only admins can stream notifications' });
-    }
-
     const companyCode = req.user.companyCode || req.user.id;
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -51,7 +42,8 @@ const streamNotifications = async (req, res) => {
     res.flushHeaders?.();
     res.write('retry: 5000\n\n');
 
-    const key = addClient({ companyCode, role: 'admin', res });
+    const streamRole = req.user.role || req.userRole || 'all';
+    const key = addClient({ companyCode, role: streamRole, res });
     writeEvent(res, 'notification.connected', { ok: true, companyCode });
 
     const heartbeat = setInterval(() => {
@@ -72,10 +64,6 @@ const streamNotifications = async (req, res) => {
 // Mark notification as read
 const markAsRead = async (req, res) => {
   try {
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({ msg: 'Only admins can update notifications' });
-    }
-
     const { notificationId } = req.params;
     const companyCode = req.user.companyCode || req.user.id;
 
