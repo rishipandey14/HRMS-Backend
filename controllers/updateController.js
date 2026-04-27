@@ -1,45 +1,75 @@
-const Update = require("../models/Update");
-const Task = require("../models/Task");
-const Project = require("../models/Project");
+const Update = require("../models/Project/Update");
+const Task = require("../models/Project/Task");
+const Project = require("../models/Project/Project");
+const User = require("../models/User/User");
 const parsePagination = require("../utils/pagination");
+
+const hasUpdatePermission = (req, permissionKey) => {
+  const permissionKeys = req.rbac?.permissionKeys || [];
+  return req.rbac?.isAllAccess || permissionKeys.includes(permissionKey) || permissionKeys.includes('update.manage');
+};
 
 const getUpdatesByTask = async (req, res) => {
   try {
     const taskId = req.params.taskId;
     const userId = req.user.id;
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user.id;
 
-    const task = await Task.findById(taskId);
+    const task = await Task.findByPk(taskId);
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const project = await Project.findById(task.projectId);
+    const project = await Project.findByPk(task.projectId);
     if (!project || project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
+    const assignedUserIds = Array.isArray(task.assignedTo) ? task.assignedTo : [];
     if (
       role !== "admin" &&
       role !== "sadmin" &&
-      (!task.assignedTo || !task.assignedTo.includes(userId))
+      !assignedUserIds.includes(userId)
     ) {
-      return res
-        .status(403)
-        .json({ error: "Access denied: not assigned to this task" });
+      return res.status(403).json({
+        error: "Access denied: not assigned to this task"
+      });
     }
 
-    const filter = { taskId };
+    const { page, limit } = parsePagination(req.query);
+    const offset = (page - 1) * limit;
+    const { rows: updates, count: total } =
+      await Update.findAndCountAll({
+        where: { taskId },
+        order: [["date", "DESC"]],
+        limit,
+        offset
+      });
 
-    const { page, limit, skip } = parsePagination(req.query);
-    const total = await Update.countDocuments(filter);
-    const updates = await Update.find(filter)
-      .populate("createdBy", "name email role")
-      .skip(skip)
-      .limit(limit)
-      .sort({ date: -1 })
-      .lean();
+    // Populate user details for each update
+    const updatesWithUsers = await Promise.all(
+      updates.map(async (update) => {
+        const updateData = update.toJSON();
+        
+        if (updateData.createdBy) {
+          const creator = await User.findByPk(updateData.createdBy);
+          updateData.createdByUser = creator ? creator.toJSON() : null;
+        }
+        
+        if (updateData.updatedBy) {
+          const updater = await User.findByPk(updateData.updatedBy);
+          updateData.updatedByUser = updater ? updater.toJSON() : null;
+        }
+        
+        return updateData;
+      })
+    );
 
-    return res.json({ total, page, limit, updates });
+    return res.json({
+      total,
+      page,
+      limit,
+      updates: updatesWithUsers
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Error fetching updates" });
@@ -51,30 +81,41 @@ const getUpdateById = async (req, res) => {
     const { updateId } = req.params;
     const userId = req.user.id;
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user.id;
 
-    const update = await Update.findById(updateId).lean();
+    const update = await Update.findByPk(updateId);
     if (!update) return res.status(404).json({ error: "Update not found" });
 
-    const task = await Task.findById(update.taskId);
+    const task = await Task.findByPk(update.taskId);
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const project = await Project.findById(task.projectId);
+    const project = await Project.findByPk(task.projectId);
     if (!project || project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
+    const assignedUserIds = Array.isArray(task.assignedTo) ? task.assignedTo : [];
     if (
       role !== "admin" &&
       role !== "sadmin" &&
-      (!task.assignedTo || !task.assignedTo.includes(userId))
+      !assignedUserIds.includes(userId)
     ) {
-      return res
-        .status(403)
-        .json({ error: "Access denied: not assigned to this task" });
+      return res.status(403).json({ error: "Access denied: not assigned to this task" });
     }
 
-    return res.json(update);
+    const updateData = update.toJSON();
+    
+    if (updateData.createdBy) {
+      const creator = await User.findByPk(updateData.createdBy);
+      updateData.createdByUser = creator ? creator.toJSON() : null;
+    }
+    
+    if (updateData.updatedBy) {
+      const updater = await User.findByPk(updateData.updatedBy);
+      updateData.updatedByUser = updater ? updater.toJSON() : null;
+    }
+
+    return res.json(updateData);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Error fetching update" });
@@ -84,45 +125,64 @@ const getUpdateById = async (req, res) => {
 const createUpdate = async (req, res) => {
   try {
     const userId = req.user.id;
+    const userType = req.userType || req.user.type;
     const taskId = req.params.taskId;
     const role = req.user.role;
-    const companyCode = req.user.companyCode;
+    const companyCode = req.user.companyCode || req.user.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "User not found in request context" });
+    }
 
     if (!req.body.status) {
       return res.status(400).json({ error: "Status is required." });
     }
 
-    const task = await Task.findById(taskId);
+    const task = await Task.findByPk(taskId);
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const project = await Project.findById(task.projectId);
+    const project = await Project.findByPk(task.projectId);
     if (!project) return res.status(404).json({ error: "Project not found" });
 
     if (project.companyId !== companyCode) {
       return res.status(403).json({ error: "Access denied: wrong company" });
     }
 
+    const assignedUserIds = Array.isArray(task.assignedTo) ? task.assignedTo : [];
     if (
       role !== "admin" &&
       role !== "sadmin" &&
-      (!task.assignedTo || !task.assignedTo.includes(userId))
+      !assignedUserIds.includes(userId)
     ) {
-      return res
-        .status(403)
-        .json({ error: "Access denied: cannot create update" });
+      return res.status(403).json({ error: "Access denied: cannot create update" });
     }
 
-    const update = new Update({
+    // For company accounts, createdBy/updatedBy should be null
+    const createdBy = userType === 'company' ? null : userId;
+    const updatedBy = userType === 'company' ? null : userId;
+
+    const update = await Update.create({
       taskId,
       date: req.body.date || new Date(),
       note: req.body.note || "",
       status: req.body.status,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy,
+      updatedBy,
     });
 
-    await update.save();
-    return res.status(201).json(update);
+    const updateData = update.toJSON();
+    
+    if (updateData.createdBy) {
+      const creator = await User.findByPk(updateData.createdBy);
+      updateData.createdByUser = creator ? creator.toJSON() : null;
+    }
+    
+    if (updateData.updatedBy) {
+      const updater = await User.findByPk(updateData.updatedBy);
+      updateData.updatedByUser = updater ? updater.toJSON() : null;
+    }
+
+    return res.status(201).json(updateData);
   } catch (err) {
     console.error(err);
     return res.status(400).json({ error: err.message });
@@ -132,24 +192,35 @@ const createUpdate = async (req, res) => {
 const updateUpdate = async (req, res) => {
   try {
     const userId = req.user.id;
+    const userType = req.userType || req.user.type;
     const { updateId } = req.params;
     const role = req.user.role;
 
-    if (!(role === "admin" || role === "sadmin")) {
+    if (!(role === "admin" || role === "sadmin") && !hasUpdatePermission(req, 'update.update')) {
       return res.status(403).json({ error: "Access denied: admin only" });
     }
 
-    const updateRecord = await Update.findById(updateId);
-    if (!updateRecord)
-      return res.status(404).json({ error: "Update not found" });
+    const update = await Update.findByPk(updateId);
+    if (!update) return res.status(404).json({ error: "Update not found" });
 
-    const updated = await Update.findByIdAndUpdate(
-      updateId,
-      { ...req.body, updatedBy: userId },
-      { new: true, runValidators: true }
-    );
+    // For company accounts, updatedBy should be null
+    const updatedBy = userType === 'company' ? null : userId;
 
-    return res.json(updated);
+    await update.update({ ...req.body, updatedBy });
+
+    const updateData = update.toJSON();
+    
+    if (updateData.createdBy) {
+      const creator = await User.findByPk(updateData.createdBy);
+      updateData.createdByUser = creator ? creator.toJSON() : null;
+    }
+    
+    if (updateData.updatedBy) {
+      const updater = await User.findByPk(updateData.updatedBy);
+      updateData.updatedByUser = updater ? updater.toJSON() : null;
+    }
+
+    return res.json(updateData);
   } catch (err) {
     console.error(err);
     return res.status(400).json({ error: err.message });
@@ -161,15 +232,14 @@ const deleteUpdate = async (req, res) => {
     const { updateId } = req.params;
     const role = req.user.role;
 
-    if (!(role === "admin" || role === "sadmin")) {
+    if (!(role === "admin" || role === "sadmin") && !hasUpdatePermission(req, 'update.delete')) {
       return res.status(403).json({ error: "Access denied: admin only" });
     }
 
-    const updateRecord = await Update.findById(updateId);
-    if (!updateRecord)
-      return res.status(404).json({ error: "Update not found" });
+    const update = await Update.findByPk(updateId);
+    if (!update) return res.status(404).json({ error: "Update not found" });
 
-    await Update.findByIdAndDelete(updateId);
+    await update.destroy();
     return res.status(204).send();
   } catch (err) {
     console.error(err);

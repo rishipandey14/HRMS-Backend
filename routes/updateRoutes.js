@@ -2,15 +2,15 @@ const express = require("express");
 const router = express.Router({ mergeParams: true });
 
 const authMiddleware = require("../middleware/authMiddleware");
-const adminMiddleware = require("../middleware/adminMiddleware");
+const { requirePermission } = require('../middleware/rbacMiddleware');
 const updateController = require("../controllers/updateController");
 
 router.use(authMiddleware);
 
-router.get("/", updateController.getUpdatesByTask);
-router.get("/:updateId", updateController.getUpdateById);
-router.post("/", updateController.createUpdate);
-router.put("/:updateId", adminMiddleware, updateController.updateUpdate);
-router.delete("/:updateId", adminMiddleware, updateController.deleteUpdate);
+router.get("/", requirePermission('update.view'), updateController.getUpdatesByTask);
+router.get("/:updateId", requirePermission('update.view'), updateController.getUpdateById);
+router.post('/', requirePermission('update.create'), updateController.createUpdate);
+router.put('/:updateId', requirePermission('update.update'), updateController.updateUpdate);
+router.delete('/:updateId', requirePermission('update.delete'), updateController.deleteUpdate);
 
 module.exports = router;

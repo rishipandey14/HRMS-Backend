@@ -1,24 +1,27 @@
-const Notification = require('../models/Notification');
+const Notification = require('../models/Others/Notification');
+const {
+  addClient,
+  removeClient,
+  publishNotificationToAdmin,
+  writeEvent,
+} = require('../services/notificationSseService');
 
 // Get notifications for a company (admin)
 const getNotifications = async (req, res) => {
   try {
-    // Only admins can view notifications
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({ msg: 'Only admins can view notifications' });
-    }
-
-    // For Company users, use _id as companyCode; for regular users, use companyCode
-    const companyCode = req.user.companyCode || req.user._id;
+    // For Company users, use id as companyCode; for regular users, use companyCode
+    const companyCode = req.user.companyCode || req.user.id;
     const { type, status } = req.query;
 
-    const filter = { companyCode };
-    if (type) filter.type = type;
-    if (status) filter.status = status;
+    const where = { companyCode };
+    if (type) where.type = type;
+    if (status) where.status = status;
 
-    const notifications = await Notification.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(50);
+    const notifications = await Notification.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: 50
+    });
 
     res.json({ notifications });
   } catch (error) {
@@ -27,20 +30,57 @@ const getNotifications = async (req, res) => {
   }
 };
 
+const streamNotifications = async (req, res) => {
+  try {
+    const companyCode = req.user.companyCode || req.user.id;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    res.flushHeaders?.();
+    res.write('retry: 5000\n\n');
+
+    const streamRole = req.user.role || req.userRole || 'all';
+    const key = addClient({ companyCode, role: streamRole, res });
+    writeEvent(res, 'notification.connected', { ok: true, companyCode });
+
+    const heartbeat = setInterval(() => {
+      res.write(': keep-alive\n\n');
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      removeClient({ key, res });
+      res.end();
+    });
+  } catch (error) {
+    console.error('Stream notifications error:', error);
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
 // Mark notification as read
 const markAsRead = async (req, res) => {
   try {
     const { notificationId } = req.params;
+    const companyCode = req.user.companyCode || req.user.id;
 
-    const notification = await Notification.findByIdAndUpdate(
-      notificationId,
-      { isRead: true },
-      { new: true }
-    );
+    const notification = await Notification.findOne({ where: { id: notificationId, companyCode } });
 
     if (!notification) {
       return res.status(404).json({ msg: 'Notification not found' });
     }
+
+    notification.isRead = true;
+    await notification.save();
+
+    publishNotificationToAdmin({
+      companyCode,
+      event: 'notification.updated',
+      notification: notification.get({ plain: true }),
+    });
 
     res.json({ notification });
   } catch (error) {
@@ -51,5 +91,6 @@ const markAsRead = async (req, res) => {
 
 module.exports = {
   getNotifications,
+  streamNotifications,
   markAsRead
 };
