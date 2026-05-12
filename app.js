@@ -24,6 +24,9 @@ try {
   app.use("/api/chats", require("./routes/chatRoutes"));
   app.use("/api/messages", require("./routes/messageRoutes"));
   app.use('/api/rbac', require('./routes/rbacRoutes'));
+  app.use('/api/integrations', require('./routes/integrationsRoutes'));
+  app.use('/api/candidates', require('./routes/candidatesRoutes'));
+  app.use('/api/jobs', require('./routes/jobsRoutes'));
 } catch (err) {
   console.error('Error loading routes:', err.message);
   process.exit(1);
@@ -35,5 +38,17 @@ app.use((err, req, res, next) => {
 });
 
 app.get("/", (req, res) => res.send("Backend is running"));
+
+// Serve public uploads
+const path = require('path');
+app.use('/uploads', require('express').static(path.resolve(__dirname, 'public_uploads')));
+
+// Public routes for job pages and apply
+try {
+  const { router: publicRouter } = require('./routes/publicRoutes');
+  app.use('/public', publicRouter);
+} catch (e) {
+  console.warn('Public routes not mounted:', e.message);
+}
 
 module.exports = app;
