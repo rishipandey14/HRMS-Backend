@@ -96,6 +96,8 @@ const connectDB = async () => {
     const Permission = require('../models/RolesAndPermission/Permission');
     const RolePermission = require('../models/RolesAndPermission/RolePermission');
     const UserRole = require('../models/User/UserRole');
+    const Job = require('../models/Recruitment/Job');
+    const Candidate = require('../models/Recruitment/Candidate');
 
     // RBAC associations
     Role.belongsTo(Company, { foreignKey: 'companyId' });
@@ -155,6 +157,8 @@ const connectDB = async () => {
     } else {
       console.log('Skipped Sequelize sync (SEQUELIZE_SYNC_MODE=none)');
     }
+
+    // Recruitment models are already required above so sync can create tables.
     
     // Set auto-increment start value for User id to 100000
     await seq.query('ALTER TABLE users AUTO_INCREMENT=100000;').catch(() => {
