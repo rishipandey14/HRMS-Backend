@@ -8,6 +8,7 @@ const {
   getSubscriptionContext,
 } = require('../services/subscriptionService');
 const { seedSystemRolesForCompany, createSAdminRoleForCompany } = require('../services/rbacService');
+// const { redis } = require('../app');
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret"; // Use .env in production
 
@@ -130,12 +131,14 @@ const listCompanyUsers = async (req, res) => {
       limit
     });
 
-    return res.json({
+    const Response = ({
       page,
       limit,
       total,
       users,
     });
+    // if(Response) await app.redis.set(Response , 600);
+    return Response;
   } catch (error) {
     console.error('listCompanyUsers error:', error);
     res.status(500).json({ msg: 'Failed to list company users' });

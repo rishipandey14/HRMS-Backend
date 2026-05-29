@@ -3,6 +3,13 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
+let Redis = null;
+try {
+  Redis = require("ioredis");
+} catch (err) {
+  console.warn("Redis client disabled: ioredis is not available.", err.message);
+}
+
 const cors = require('cors');
 const app = express();
 
@@ -12,6 +19,22 @@ app.use(cors({
 }));
 app.use(express.json());
 
+if (Redis) {
+  const redis = new Redis({
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+    username: process.env.REDIS_USERNAME,
+    password: process.env.REDIS_PASSWORD
+  });
+
+  redis.on("connect", () => {
+    console.log("redis connected");
+  });
+
+  redis.on("error", (err) => {
+    console.error("Redis connection error: ", err.message);
+  });
+}
 
 try {
   app.use("/api/auth", require("./routes/authRoutes"));
