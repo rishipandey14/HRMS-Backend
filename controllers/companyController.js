@@ -8,6 +8,7 @@ const {
   getSubscriptionContext,
 } = require('../services/subscriptionService');
 const { seedSystemRolesForCompany, createSAdminRoleForCompany } = require('../services/rbacService');
+const { getPresence } = require('../services/presenceService');
 // const { redis } = require('../app');
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret"; // Use .env in production
@@ -118,6 +119,22 @@ const listCompanyUsers = async (req, res) => {
     const offset = (page - 1) * limit;
     const includeAllRoles = String(req.query.includeAllRoles || 'true').toLowerCase() === 'true';
 
+    const formatRelativeTime = (value) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+
+      const diffMinutes = Math.floor((Date.now() - date.getTime()) / 60000);
+      if (diffMinutes < 1) return 'just now';
+      if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+    };
+
     // Default behavior keeps existing employee-only listing for existing screens.
     // Access control can opt into full list to reassign any role.
     const userFilter = includeAllRoles
@@ -131,11 +148,23 @@ const listCompanyUsers = async (req, res) => {
       limit
     });
 
+    const usersWithPresence = users.map((user) => {
+      const plainUser = user.toJSON();
+      const presence = getPresence(plainUser.id);
+
+      return {
+        ...plainUser,
+        isOnline: presence.isOnline,
+        lastSeenAt: presence.lastSeenAt,
+        lastSeenAgo: presence.isOnline ? 'Online now' : formatRelativeTime(presence.lastSeenAt),
+      };
+    });
+
     const response = {
       page,
       limit,
       total,
-      users,
+      users: usersWithPresence,
     };
 
     return res.json(response);
