@@ -116,7 +116,7 @@ const listCompanyUsers = async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 50;
     const offset = (page - 1) * limit;
-    const includeAllRoles = String(req.query.includeAllRoles || 'false').toLowerCase() === 'true';
+    const includeAllRoles = String(req.query.includeAllRoles || 'true').toLowerCase() === 'true';
 
     // Default behavior keeps existing employee-only listing for existing screens.
     // Access control can opt into full list to reassign any role.
@@ -131,14 +131,14 @@ const listCompanyUsers = async (req, res) => {
       limit
     });
 
-    const Response = ({
+    const response = {
       page,
       limit,
       total,
       users,
-    });
-    // if(Response) await app.redis.set(Response , 600);
-    return Response;
+    };
+
+    return res.json(response);
   } catch (error) {
     console.error('listCompanyUsers error:', error);
     res.status(500).json({ msg: 'Failed to list company users' });

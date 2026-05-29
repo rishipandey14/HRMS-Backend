@@ -3,7 +3,9 @@ const router = express.Router();
 const { 
   getNotifications, 
   streamNotifications,
-  markAsRead 
+  markAsRead,
+  createRequestNotification,
+  decideRequestNotification
 } = require('../controllers/notificationController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/rbacMiddleware');
@@ -23,5 +25,11 @@ router.get('/stream', sseTokenMiddleware, authMiddleware, requirePermission('not
 
 // Mark notification as read
 router.patch('/:notificationId/read', authMiddleware, requirePermission('notification.update'), markAsRead);
+
+// Approve or reject request notifications
+router.patch('/:notificationId/decision', authMiddleware, requirePermission('notification.update'), decideRequestNotification);
+
+// Create request notifications for leave / regularization submissions
+router.post('/requests', authMiddleware, createRequestNotification);
 
 module.exports = router;

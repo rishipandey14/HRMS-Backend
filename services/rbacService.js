@@ -359,6 +359,7 @@ const buildRoleHierarchyTree = (roles = []) => {
   const nodeMap = new Map();
   roles.forEach((role) => {
     nodeMap.set(role.id, {
+      ...role,
       id: role.id,
       name: role.name,
       isSystem: role.isSystem,

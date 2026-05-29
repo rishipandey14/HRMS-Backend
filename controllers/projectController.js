@@ -5,6 +5,9 @@ const Task = require("../models/Project/Task");
 const User = require("../models/User/User");
 const parsePagination = require("../utils/pagination");
 const { validateSubscriptionCapacity } = require('../services/subscriptionService');
+const Notification = require('../models/Others/Notification');
+const { publishNotificationToUsers } = require('../services/notificationSseService');
+const { collectHierarchyUserIds } = require('../services/notificationHierarchyService');
 
 const getProjectsByCompany = async (req, res) => {
   try {
@@ -244,6 +247,34 @@ const createProject = async (req, res) => {
       participants,
     });
 
+    try {
+      const notification = await Notification.create({
+        companyCode: companyId,
+        type: 'other',
+        userId: createdBy,
+        userName: req.user?.name || 'System',
+        userEmail: req.user?.email || null,
+        message: `Project created: ${project.title}`,
+        status: 'pending',
+      });
+
+      const targetUserIds = await collectHierarchyUserIds({
+        companyCode: companyId,
+        userIds: [createdBy, ...participants],
+      });
+
+      if (targetUserIds.length > 0) {
+        await publishNotificationToUsers({
+          companyCode: companyId,
+          event: 'notification.created',
+          notification: notification.get({ plain: true }),
+          userIds: targetUserIds,
+        });
+      }
+    } catch (notifyError) {
+      console.error('Project create notification error:', notifyError);
+    }
+
     return res.status(201).json(project);
   } catch (err) {
     console.error(err);
@@ -267,6 +298,36 @@ const updateProject = async (req, res) => {
     const updated = await project.update(
       { ...req.body, updatedBy: userId }
     );
+
+    if (req.body?.isCompleted === true || req.body?.status === 'Completed') {
+      try {
+        const targetUserIds = await collectHierarchyUserIds({
+          companyCode,
+          userIds: [project.createdBy, ...(Array.isArray(project.participants) ? project.participants : [])],
+        });
+
+        if (targetUserIds.length > 0) {
+          const notification = await Notification.create({
+            companyCode,
+            type: 'other',
+            userId: project.createdBy || userId,
+            userName: req.user?.name || 'System',
+            userEmail: req.user?.email || null,
+            message: `Project completed: ${project.title}`,
+            status: 'pending',
+          });
+
+          await publishNotificationToUsers({
+            companyCode,
+            event: 'notification.created',
+            notification: notification.get({ plain: true }),
+            userIds: targetUserIds,
+          });
+        }
+      } catch (notifyError) {
+        console.error('Project completion notification error:', notifyError);
+      }
+    }
 
     return res.json(updated);
   } catch (err) {

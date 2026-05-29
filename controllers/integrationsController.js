@@ -11,8 +11,8 @@ const receiveCandidate = async (req, res) => {
 
     const message = `New candidate received: ${name}. Score: ${candidate.score || 'N/A'}`;
 
-    // Create notification for admins
-    await Notification.create({
+    // Create notification for admins and publish to admin SSE listeners
+    const notification = await Notification.create({
       companyCode,
       type: 'file_upload',
       userName: name,
@@ -20,6 +20,13 @@ const receiveCandidate = async (req, res) => {
       message,
       status: 'pending'
     });
+
+    try {
+      const { publishNotificationToAdmin } = require('../services/notificationSseService');
+      publishNotificationToAdmin({ companyCode, event: 'notification.created', notification: notification.get({ plain: true }) });
+    } catch (e) {
+      console.error('Failed to publish integration notification via SSE', e);
+    }
 
     const sourceCandidateId = candidate.candidateId || candidate.sourceCandidateId || null;
     const parsedPayload = {

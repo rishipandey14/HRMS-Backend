@@ -1,8 +1,11 @@
 const Notification = require('../models/Others/Notification');
+const { collectHierarchyUserIds } = require('../services/notificationHierarchyService');
 const {
   addClient,
   removeClient,
   publishNotificationToAdmin,
+  publishNotificationToRoles,
+  publishNotificationToUsers,
   writeEvent,
 } = require('../services/notificationSseService');
 
@@ -42,8 +45,9 @@ const streamNotifications = async (req, res) => {
     res.flushHeaders?.();
     res.write('retry: 5000\n\n');
 
-    const streamRole = req.user.role || req.userRole || 'all';
-    const key = addClient({ companyCode, role: streamRole, res });
+    // Register connection both for the user's id and their role so they receive targeted and role-based events
+    const streamRole = req.user.role || req.userRole || 'user';
+    const clientKeys = addClient({ companyCode, role: streamRole, userId: req.user.id, res });
     writeEvent(res, 'notification.connected', { ok: true, companyCode });
 
     const heartbeat = setInterval(() => {
@@ -52,7 +56,7 @@ const streamNotifications = async (req, res) => {
 
     req.on('close', () => {
       clearInterval(heartbeat);
-      removeClient({ key, res });
+      removeClient({ key: clientKeys, res });
       res.end();
     });
   } catch (error) {
@@ -89,8 +93,126 @@ const markAsRead = async (req, res) => {
   }
 };
 
+const decideRequestNotification = async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    const { action } = req.body || {};
+    const companyCode = req.user.companyCode || req.user.id;
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ msg: 'Invalid action' });
+    }
+
+    const notification = await Notification.findOne({ where: { id: notificationId, companyCode } });
+
+    if (!notification) {
+      return res.status(404).json({ msg: 'Notification not found' });
+    }
+
+    if (!['leave_request', 'regularization_request'].includes(notification.type)) {
+      return res.status(400).json({ msg: 'This notification cannot be approved or rejected' });
+    }
+
+    notification.status = action === 'approve' ? 'approved' : 'rejected';
+    notification.isRead = true;
+    await notification.save();
+
+    const payload = notification.get({ plain: true });
+    const requesterId = payload.userId;
+    const eventName = 'notification.updated';
+
+    if (requesterId) {
+      await publishNotificationToUsers({
+        companyCode,
+        event: eventName,
+        notification: payload,
+        userIds: [requesterId],
+      });
+    }
+
+    publishNotificationToRoles({
+      companyCode,
+      event: eventName,
+      notification: payload,
+      roles: ['admin', 'hr_manager', 'hr', 'sadmin'],
+    });
+
+    return res.json({ notification: payload });
+  } catch (error) {
+    console.error('Decide request notification error:', error);
+    return res.status(500).json({ msg: 'Server error' });
+  }
+};
+
+const createRequestNotification = async (req, res) => {
+  try {
+    const companyCode = req.user.companyCode || req.user.id;
+    const requesterId = req.user.id;
+    const requesterName = req.user.name || 'System';
+    const requesterEmail = req.user.email || null;
+    const {
+      requestType = 'leave_request',
+      fromDate,
+      toDate,
+      description,
+      attachmentUrl,
+      title,
+      targetUserIds = [],
+    } = req.body || {};
+
+    const resolvedTargets = await collectHierarchyUserIds({
+      companyCode,
+      userIds: [requesterId, ...targetUserIds],
+    });
+
+    const messageParts = [
+      title || requestType.replace('_', ' '),
+      fromDate ? `from ${fromDate}` : null,
+      toDate ? `to ${toDate}` : null,
+      description ? `- ${description}` : null,
+    ].filter(Boolean);
+
+    const notification = await Notification.create({
+      companyCode,
+      type: requestType,
+      userId: requesterId,
+      userName: requesterName,
+      userEmail: requesterEmail,
+      message: messageParts.join(' '),
+      status: 'pending',
+    });
+
+    const payload = notification.get({ plain: true });
+
+    if (resolvedTargets.length > 0) {
+      await publishNotificationToUsers({
+        companyCode,
+        event: 'notification.created',
+        notification: payload,
+        userIds: resolvedTargets,
+      });
+    } else {
+      publishNotificationToAdmin({
+        companyCode,
+        event: 'notification.created',
+        notification: payload,
+      });
+    }
+
+    return res.status(201).json({
+      notification: payload,
+      targets: resolvedTargets,
+    });
+  } catch (error) {
+    console.error('Create request notification error:', error);
+    return res.status(500).json({ msg: 'Server error' });
+  }
+};
+
 module.exports = {
   getNotifications,
   streamNotifications,
-  markAsRead
+  markAsRead,
+  createRequestNotification,
+  decideRequestNotification,
 };

@@ -6,7 +6,9 @@ const createJob = async (req, res) => {
   try {
     const payload = req.body;
     const companyCode = req.user.companyCode || payload.companyCode;
-    const job = await Job.create({ ...payload, companyCode });
+    // Record creator as job owner when available
+    const createdBy = req.user?.id || payload.createdBy || null;
+    const job = await Job.create({ ...payload, companyCode, createdBy });
     return res.status(201).json(job);
   } catch (err) {
     console.error('Create job error:', err);
@@ -96,6 +98,37 @@ const rankForJob = async (req, res) => {
     }
 
     const updated = await Candidate.findAll({ where: { jobId, companyCode: job.companyCode }, order: [['score', 'DESC']] });
+    // Create a notification for job owner and their manager (if any)
+    try {
+      const Notification = require('../models/Others/Notification');
+      const User = require('../models/User/User');
+
+      const ownerId = job.createdBy || req.user?.id;
+      let owner = null;
+      if (ownerId) owner = await User.findByPk(ownerId);
+
+      const notif = await Notification.create({
+        companyCode: job.companyCode,
+        type: 'other',
+        userId: ownerId || null,
+        userName: owner ? owner.name : (req.user?.name || 'System'),
+        userEmail: owner ? owner.email : null,
+        message: `Resume ranking completed for job: ${job.title}`,
+        status: 'pending'
+      });
+
+      const { publishNotificationToUsers } = require('../services/notificationSseService');
+      const targetUserIds = [];
+      if (ownerId) targetUserIds.push(ownerId);
+      if (owner && owner.managerId) targetUserIds.push(owner.managerId);
+
+      if (targetUserIds.length) {
+        publishNotificationToUsers({ companyCode: job.companyCode, event: 'notification.created', notification: notif.get({ plain: true }), userIds: targetUserIds });
+      }
+    } catch (e) {
+      console.error('Failed to create/publish job ranking notification', e);
+    }
+
     return res.json(updated);
   } catch (err) {
     console.error('Rank job error:', err.message || err);

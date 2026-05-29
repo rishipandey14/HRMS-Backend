@@ -38,6 +38,14 @@ const User = seq.define('User', {
 		onDelete: 'CASCADE',
 		onUpdate: 'CASCADE',
 	},
+    managerId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
+    },
 	role: {
 		type: DataTypes.STRING,
 		defaultValue: 'unauthorized',

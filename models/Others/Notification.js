@@ -16,7 +16,7 @@ const Notification = seq.define('Notification', {
 		},
 	},
 	type: {
-		type: DataTypes.ENUM('user_approval', 'comment', 'file_upload', 'task_assigned', 'other'),
+		type: DataTypes.ENUM('user_approval', 'comment', 'file_upload', 'task_assigned', 'leave_request', 'regularization_request', 'other'),
 		defaultValue: 'other',
 	},
 	userId: {

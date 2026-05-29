@@ -1,7 +1,11 @@
+const { Op } = require('sequelize');
 const Task = require("../models/Project/Task");
 const Project = require("../models/Project/Project");
 const User = require("../models/User/User");
 const parsePagination = require("../utils/pagination");
+const Notification = require('../models/Others/Notification');
+const { publishNotificationToUsers } = require('../services/notificationSseService');
+const { collectHierarchyUserIds } = require('../services/notificationHierarchyService');
 
 const hasTaskUpdatePermission = (req) => {
   const permissionKeys = req.rbac?.permissionKeys || [];
@@ -197,9 +201,79 @@ const updateTask = async (req, res) => {
     // For company accounts, updatedBy should be null
     const updatedBy = userType === 'company' ? null : userId;
 
+    const previousStatus = task.status;
+    const nextStatus = req.body?.status || task.status;
+
     const updated = await task.update(
       { ...req.body, updatedBy }
     );
+
+    if (previousStatus !== 'Completed' && nextStatus === 'Completed') {
+      try {
+        const projectOwnerId = project.createdBy || updatedBy || userId;
+        const targetUserIds = await collectHierarchyUserIds({
+          companyCode,
+          userIds: [
+            projectOwnerId,
+            ...(Array.isArray(task.assignedTo) ? task.assignedTo : []),
+          ],
+        });
+
+        if (targetUserIds.length > 0) {
+          const notification = await Notification.create({
+            companyCode,
+            type: 'other',
+            userId: projectOwnerId,
+            userName: req.user?.name || 'System',
+            userEmail: req.user?.email || null,
+            message: `Task completed: ${task.title}`,
+            status: 'pending',
+          });
+
+          await publishNotificationToUsers({
+            companyCode,
+            event: 'notification.created',
+            notification: notification.get({ plain: true }),
+            userIds: targetUserIds,
+          });
+        }
+
+        const remainingOpenTasks = await Task.count({
+          where: {
+            projectId: project.id,
+            status: { [Op.ne]: 'Completed' },
+          },
+        });
+
+        if (remainingOpenTasks === 0) {
+          const projectTargets = await collectHierarchyUserIds({
+            companyCode,
+            userIds: [projectOwnerId, ...(Array.isArray(project.participants) ? project.participants : [])],
+          });
+
+          if (projectTargets.length > 0) {
+            const projectDoneNotification = await Notification.create({
+              companyCode,
+              type: 'other',
+              userId: projectOwnerId,
+              userName: req.user?.name || 'System',
+              userEmail: req.user?.email || null,
+              message: `Project completed: ${project.title}`,
+              status: 'pending',
+            });
+
+            await publishNotificationToUsers({
+              companyCode,
+              event: 'notification.created',
+              notification: projectDoneNotification.get({ plain: true }),
+              userIds: projectTargets,
+            });
+          }
+        }
+      } catch (notifyError) {
+        console.error('Task completion notification error:', notifyError);
+      }
+    }
 
     return res.json(updated);
   } catch (err) {
