@@ -5,6 +5,11 @@ const {
 
 const requireCompanyAdmin = async (req, res, next) => {
   try {
+    const resolvedRole = String(req.userRole || req.user?.role || '').toLowerCase();
+    if (['admin', 'sadmin'].includes(resolvedRole)) {
+      return next();
+    }
+
     if (req.userType === 'company') {
       return next();
     }

@@ -136,17 +136,39 @@ const listCompanyUsers = async (req, res) => {
     };
 
     // Default behavior keeps existing employee-only listing for existing screens.
-    // Access control can opt into full list to reassign any role.
-    const userFilter = includeAllRoles
-      ? { companyCode: companyId }
-      : { companyCode: companyId, role: 'employee' };
-    const {rows: users, count: total} = await User.findAndCountAll({
-      where: userFilter,
+    // If `includeAllRoles` is false, filter users who have the `employee` RBAC role
+    const queryOptions = {
       attributes: { exclude: ['password'] },
       order: [['createdAt', 'DESC']],
-      offset: offset,
-      limit
-    });
+      offset,
+      limit,
+    };
+
+    if (includeAllRoles) {
+      queryOptions.where = { companyCode: companyId };
+    } else {
+      // Only include users assigned the 'employee' role within this company
+      queryOptions.where = { companyCode: companyId };
+      queryOptions.include = [{
+        association: 'rbacRoles',
+        attributes: [],
+        where: { name: 'employee', companyId },
+        through: { attributes: [] },
+        required: true,
+      }];
+    }
+
+    // Always include RBAC roles so frontend can render a user's assigned role
+    if (!queryOptions.include) {
+      queryOptions.include = [{
+        association: 'rbacRoles',
+        attributes: ['id', 'name', 'parentRoleId'],
+        through: { attributes: [] },
+        required: false,
+      }];
+    }
+
+    const { rows: users, count: total } = await User.findAndCountAll(queryOptions);
 
     const usersWithPresence = users.map((user) => {
       const plainUser = user.toJSON();
@@ -155,8 +177,9 @@ const listCompanyUsers = async (req, res) => {
       return {
         ...plainUser,
         isOnline: presence.isOnline,
+        // Return raw timestamp; frontend is responsible for humanized formatting
         lastSeenAt: presence.lastSeenAt,
-        lastSeenAgo: presence.isOnline ? 'Online now' : formatRelativeTime(presence.lastSeenAt),
+        lastSeenAgo: null,
       };
     });
 

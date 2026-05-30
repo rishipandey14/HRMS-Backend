@@ -47,6 +47,7 @@ try {
   app.use("/api/chats", require("./routes/chatRoutes"));
   app.use("/api/messages", require("./routes/messageRoutes"));
   app.use('/api/rbac', require('./routes/rbacRoutes'));
+  app.use('/api/holidays', require('./routes/holidayRoutes'));
   app.use('/api/integrations', require('./routes/integrationsRoutes'));
   app.use('/api/candidates', require('./routes/candidatesRoutes'));
   app.use('/api/jobs', require('./routes/jobsRoutes'));

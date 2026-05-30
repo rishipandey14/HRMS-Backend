@@ -5,7 +5,9 @@ const typingEvents = require("./events/typing");
 const seenEvents = require("./events/seen");
 const userEvents = require("./events/user");
 const Chat = require("../models/Chat/Chat");
-const { markUserOnline, markUserOffline } = require("../services/presenceService");
+const { markUserOnline, markUserOffline, markUserHeartbeat } = require("../services/presenceService");
+const Session = require('../models/Others/Session');
+const { createSessionForUser } = require('../services/sessionService');
 
 // Use localhost for local dev, task-tracker-backend for Docker
 const TASK_TRACKER_URL = process.env.TASK_TRACKER_URL || 
@@ -56,6 +58,18 @@ const registerSocketHandlers = (io) => {
         }
 
         const onlinePresence = markUserOnline(socket.userId);
+        // Ensure a DB session exists for this socket connection - non-blocking
+        (async () => {
+          try {
+            const existing = await Session.findOne({ where: { userId: socket.userId, logoutAt: null } });
+            if (!existing) {
+              // payload has user info; use createSessionForUser which will insert loginAt
+              await createSessionForUser({ id: socket.userId, companyCode: socket.companyCode });
+            }
+          } catch (err) {
+            console.error('Error ensuring session record for user', socket.userId, err && err.message ? err.message : err);
+          }
+        })();
         if (socket.companyCode) {
           io.to(`company_${socket.companyCode}`).emit("presence_changed", {
             userId: socket.userId,
@@ -71,15 +85,35 @@ const registerSocketHandlers = (io) => {
         seenEvents(io, socket);
         userEvents(io, socket);
 
-        socket.on("disconnect", () => {
+        socket.on("disconnect", async () => {
           console.log(`User ${socket.userId} disconnected. Socket: ${socket.id}`);
-          const offlinePresence = markUserOffline(socket.userId);
-          if (socket.companyCode) {
-            io.to(`company_${socket.companyCode}`).emit("presence_changed", {
-              userId: socket.userId,
-              companyCode: socket.companyCode,
-              ...offlinePresence,
-            });
+          try {
+            const offlinePresence = await markUserOffline(socket.userId);
+            if (socket.companyCode) {
+              io.to(`company_${socket.companyCode}`).emit("presence_changed", {
+                userId: socket.userId,
+                companyCode: socket.companyCode,
+                ...offlinePresence,
+              });
+            }
+          } catch (err) {
+            console.error('Error on disconnect presence update for', socket.userId, err && err.message ? err.message : err);
+          }
+        });
+
+        // Heartbeat pings from client to persist lastSeenAt while connected
+        socket.on('presence_ping', async (payload) => {
+          try {
+            const presence = await markUserHeartbeat(socket.userId, payload?.ts ? new Date(payload.ts) : new Date());
+            if (socket.companyCode) {
+              io.to(`company_${socket.companyCode}`).emit('presence_changed', {
+                userId: socket.userId,
+                companyCode: socket.companyCode,
+                ...presence,
+              });
+            }
+          } catch (err) {
+            console.error('Error handling presence_ping for', socket.userId, err && err.message ? err.message : err);
           }
         });
       } catch (err) {

@@ -28,6 +28,11 @@ const User = seq.define('User', {
 		type: DataTypes.STRING,
 		allowNull: true,
 	},
+	lastSeenAt: {
+		type: DataTypes.DATE,
+		allowNull: true,
+		defaultValue: null,
+	},
 	companyCode: {
 		type: DataTypes.STRING(6),
 		allowNull: true,
@@ -46,9 +51,10 @@ const User = seq.define('User', {
         key: 'id',
       },
     },
-	role: {
-		type: DataTypes.STRING,
-		defaultValue: 'unauthorized',
+	approved: {
+		type: DataTypes.BOOLEAN,
+		allowNull: false,
+		defaultValue: false,
 	},
 }, {
 	timestamps: true,

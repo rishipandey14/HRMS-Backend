@@ -178,12 +178,11 @@ const getPlanDurationDays = (plan) => {
 
 const getCompanyUsage = async (companyId) => {
   const [activeEmployees, projects, totalEmployees] = await Promise.all([
+    // Count active employees by approved flag instead of legacy `role` column
     User.count({
       where: {
         companyCode: companyId,
-        role: {
-          [Op.ne]: 'unauthorized',
-        },
+        approved: true,
       },
     }),
     Project.count({ where: { companyId } }),

@@ -49,7 +49,7 @@ const signupUser = async (req, res) => {
       email,
       password, // Pass plain password - model will hash it
       mobile,
-      role: "unauthorized", // will be changed after admin approval
+      // Note: role is no longer stored on User model; managed through UserRole model
     });
 
     // Create notification for admin approval
@@ -76,7 +76,7 @@ const signupUser = async (req, res) => {
 
     // Generate JWT for testing (optional for unauthorized)
     const token = jwt.sign(
-      { id: newUser.id, role: newUser.role },
+      { id: newUser.id, type: 'user', companyCode },
       JWT_SECRET,
       { expiresIn: "7d" } // Set to 7 days
     );

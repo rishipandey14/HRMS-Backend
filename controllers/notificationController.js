@@ -46,7 +46,7 @@ const streamNotifications = async (req, res) => {
     res.write('retry: 5000\n\n');
 
     // Register connection both for the user's id and their role so they receive targeted and role-based events
-    const streamRole = req.user.role || req.userRole || 'user';
+    const streamRole = req.userRole || 'user';
     const clientKeys = addClient({ companyCode, role: streamRole, userId: req.user.id, res });
     writeEvent(res, 'notification.connected', { ok: true, companyCode });
 

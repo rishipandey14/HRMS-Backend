@@ -13,9 +13,27 @@ const server = http.createServer(app);
 setupSocket(server);
 
 // Connect to DB and start server
-connectDB().then(() => {
+const { init: initPresence } = require('./services/presenceService');
+const { shutdown: shutdownPresence } = require('./services/presenceService');
+
+connectDB().then(async () => {
+	// Load persisted presence timestamps into memory
+	await initPresence();
 	server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch((err) => {
 	console.error('Database connection failed:', err);
 	process.exit(1);
 });
+
+const graceful = async () => {
+	console.log('Graceful shutdown initiated');
+	try {
+		await shutdownPresence();
+	} catch (err) {
+		console.error('Error during presence shutdown:', err && err.message ? err.message : err);
+	}
+	process.exit(0);
+};
+
+process.on('SIGINT', graceful);
+process.on('SIGTERM', graceful);

@@ -1,8 +1,32 @@
 const Company = require('../models/Company/Company');
 const User = require('../models/User/User');
+const UserRole = require('../models/User/UserRole');
+const Role = require('../models/RolesAndPermission/Role');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { createSessionForUser, endSessionForUser } = require('../services/sessionService');
+
+// Helper function to fetch user's primary role
+const getUserRole = async (userId, companyCode) => {
+  try {
+    const userRole = await UserRole.findOne({
+      where: { userId },
+      include: {
+        model: Role,
+        attributes: ['id', 'name', 'companyId'],
+        where: { companyId: companyCode },
+      },
+    });
+
+    if (userRole && userRole.Role) {
+      return userRole.Role.name;
+    }
+    return 'unauthorized';
+  } catch (err) {
+    console.error('Error fetching user role:', err);
+    return 'unauthorized';
+  }
+};
 
 const login = async (req, res) => {
   try {
@@ -51,9 +75,13 @@ const login = async (req, res) => {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // If normal user and not approved
-    if (!isCompany && user.role === 'unauthorized') {
-      return res.status(403).json({ msg: 'Awaiting admin approval' });
+    // Approval check for users (not companies)
+    let userRole = 'admin';
+    if (!isCompany) {
+      if (!user.approved) {
+        return res.status(403).json({ msg: 'Awaiting admin approval' });
+      }
+      userRole = await getUserRole(user.id, user.companyCode);
     }
 
     // Create session after successful login
@@ -62,7 +90,6 @@ const login = async (req, res) => {
     // JWT payload
     const payload = {
       id: user.id,
-      role: user.role,
       email: user.email,
       type: isCompany ? 'company' : 'user',
       companyCode: isCompany ? user.id : user.companyCode,
@@ -73,7 +100,7 @@ const login = async (req, res) => {
     res.json({
       msg: 'Login successful',
       token,
-      role: user.role,
+      role: userRole,
       type: isCompany ? 'company' : 'user',
       userId: user.id
     });
@@ -93,7 +120,11 @@ const logout = async (req, res) => {
       return res.status(401).json({ msg: 'Unauthorized' });
     }
     const { session, uptime } = await endSessionForUser(req.user);
-    res.json({ msg: 'Logout successful', session, uptime });
+    res.json({
+      msg: session ? 'Logout successful' : 'No active session found',
+      session,
+      uptime,
+    });
   } catch (err) {
     console.error('Logout error:', err.message);
     res.status(500).json({ msg: 'Internal server error' });

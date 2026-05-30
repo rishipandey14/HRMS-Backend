@@ -13,7 +13,7 @@ const getProjectsByCompany = async (req, res) => {
   try {
     const { companyId } = req.params;
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id; // company accounts don't have companyCode
 
     if (companyCode !== companyId) {
@@ -63,7 +63,7 @@ const getProjectsByCompanyWithStats = async (req, res) => {
   try {
     const { companyId } = req.params;
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
 
     if (companyCode !== companyId) {
@@ -147,7 +147,7 @@ const getProjectById = async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
 
     const project = await Project.findByPk(projectId);

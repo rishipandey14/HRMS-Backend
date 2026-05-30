@@ -16,7 +16,7 @@ const getTasksByProject = async (req, res) => {
   try {
     const projectId = req.params.projectId;
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
 
     const project = await Project.findByPk(projectId, {
@@ -73,7 +73,7 @@ const getTaskById = async (req, res) => {
   try {
     const { taskId } = req.params;
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
 
     const task = await Task.findByPk(taskId);
@@ -179,7 +179,7 @@ const updateTask = async (req, res) => {
     const userId = req.user.id;
     const userType = req.userType || req.user.type;
     const companyCode = req.user.companyCode || req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const { taskId } = req.params;
 
     const task = await Task.findByPk(taskId);
