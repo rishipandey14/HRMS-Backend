@@ -40,8 +40,45 @@ const Notification = seq.define('Notification', {
 		allowNull: false,
 	},
 	status: {
-		type: DataTypes.ENUM('pending', 'approved', 'rejected', 'read'),
+		type: DataTypes.ENUM('pending', 'pending_manager', 'pending_hr', 'approved', 'rejected', 'read'),
 		defaultValue: 'pending',
+	},
+	targetUserId: {
+		type: DataTypes.INTEGER,
+		allowNull: true,
+		references: {
+			model: 'users',
+			key: 'id',
+		},
+		onDelete: 'SET NULL',
+		onUpdate: 'CASCADE',
+	},
+	targetRole: {
+		type: DataTypes.STRING,
+		allowNull: true,
+	},
+	workflowStage: {
+		type: DataTypes.ENUM('manager_review', 'hr_review', 'final'),
+		allowNull: true,
+		defaultValue: 'manager_review',
+	},
+	decisionBy: {
+		type: DataTypes.INTEGER,
+		allowNull: true,
+		references: {
+			model: 'users',
+			key: 'id',
+		},
+		onDelete: 'SET NULL',
+		onUpdate: 'CASCADE',
+	},
+	decisionReason: {
+		type: DataTypes.TEXT,
+		allowNull: true,
+	},
+	payload: {
+		type: DataTypes.JSON,
+		allowNull: true,
 	},
 	isRead: {
 		type: DataTypes.BOOLEAN,

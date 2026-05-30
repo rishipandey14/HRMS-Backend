@@ -189,6 +189,46 @@ const connectDB = async () => {
 
     // Ensure the holiday table exists for the leave-management holiday panel.
     await Holiday.sync();
+    const queryInterface = seq.getQueryInterface();
+    const notificationTable = await queryInterface.describeTable('notifications').catch(() => null);
+    if (notificationTable) {
+      if (!notificationTable.targetUserId) {
+        await queryInterface.addColumn('notifications', 'targetUserId', {
+          type: Sequelize.INTEGER,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.targetRole) {
+        await queryInterface.addColumn('notifications', 'targetRole', {
+          type: Sequelize.STRING,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.workflowStage) {
+        await queryInterface.addColumn('notifications', 'workflowStage', {
+          type: Sequelize.STRING,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.decisionBy) {
+        await queryInterface.addColumn('notifications', 'decisionBy', {
+          type: Sequelize.INTEGER,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.decisionReason) {
+        await queryInterface.addColumn('notifications', 'decisionReason', {
+          type: Sequelize.TEXT,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.payload) {
+        await queryInterface.addColumn('notifications', 'payload', {
+          type: Sequelize.JSON,
+          allowNull: true,
+        });
+      }
+    }
     await ensureHolidayRangeSchema();
 
     // Recruitment models are already required above so sync can create tables.
