@@ -228,6 +228,7 @@ const updateTask = async (req, res) => {
             userEmail: req.user?.email || null,
             message: `Task completed: ${task.title}`,
             status: 'pending',
+            visibleUserIds: targetUserIds,
           });
 
           await publishNotificationToUsers({
@@ -260,6 +261,7 @@ const updateTask = async (req, res) => {
               userEmail: req.user?.email || null,
               message: `Project completed: ${project.title}`,
               status: 'pending',
+              visibleUserIds: projectTargets,
             });
 
             await publishNotificationToUsers({

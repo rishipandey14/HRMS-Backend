@@ -114,7 +114,8 @@ const rankForJob = async (req, res) => {
         userName: owner ? owner.name : (req.user?.name || 'System'),
         userEmail: owner ? owner.email : null,
         message: `Resume ranking completed for job: ${job.title}`,
-        status: 'pending'
+        status: 'pending',
+        visibleUserIds: targetUserIds,
       });
 
       const { publishNotificationToUsers } = require('../services/notificationSseService');

@@ -18,7 +18,8 @@ const receiveCandidate = async (req, res) => {
       userName: name,
       userEmail: email,
       message,
-      status: 'pending'
+      status: 'pending',
+      visibleRoleNames: ['admin', 'sadmin'],
     });
 
     try {

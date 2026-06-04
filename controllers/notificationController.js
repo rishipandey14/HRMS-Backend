@@ -1,8 +1,10 @@
 const Notification = require('../models/Others/Notification');
+const { Op } = require('sequelize');
 const { collectHierarchyUserIds } = require('../services/notificationHierarchyService');
 const {
   addClient,
   removeClient,
+  publishNotificationToAdmin,
   publishNotificationToRoles,
   publishNotificationToUsers,
   writeEvent,
@@ -14,6 +16,52 @@ const {
   resolveHrTarget,
   resolveManagerTarget,
 } = require('../services/leaveWorkflowService');
+
+const normalizeRoleName = (roleName = '') =>
+  String(roleName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+
+const arrayIncludesId = (values, id) => {
+  if (!Array.isArray(values)) return false;
+  return values.map((value) => String(value)).includes(String(id));
+};
+
+const arrayIncludesRole = (values, roleName) => {
+  if (!Array.isArray(values)) return false;
+  const normalized = normalizeRoleName(roleName);
+  return values.map((value) => normalizeRoleName(value)).includes(normalized);
+};
+
+const canViewNotification = (notification, req) => {
+  const currentUserId = req.user?.id;
+  const currentRole = normalizeRoleName(req.userRole || req.user?.role || '');
+
+  if (!notification) return false;
+  if (String(notification.userId) === String(currentUserId)) return true;
+  if (String(notification.targetUserId || '') === String(currentUserId)) return true;
+  if (arrayIncludesId(notification.visibleUserIds, currentUserId)) return true;
+  if (notification.targetRole && normalizeRoleName(notification.targetRole) === currentRole) return true;
+  if (arrayIncludesRole(notification.visibleRoleNames, currentRole)) return true;
+
+  if (['admin', 'sadmin'].includes(currentRole)) {
+    if (notification.type === 'user_approval') return true;
+    if (notification.type === 'file_upload') return true;
+  }
+
+  return false;
+};
+
+const mergeUserIds = (...lists) => {
+  const merged = [];
+  lists.flat().forEach((value) => {
+    if (value === null || value === undefined || value === '') return;
+    const normalized = String(value);
+    if (!merged.includes(normalized)) merged.push(normalized);
+  });
+  return merged.length ? merged : null;
+};
 
 // Get notifications for a company (admin)
 const getNotifications = async (req, res) => {
@@ -39,7 +87,9 @@ const getNotifications = async (req, res) => {
       limit: 50
     });
 
-    res.json({ notifications });
+    const visibleNotifications = notifications.filter((notification) => canViewNotification(notification.get({ plain: true }), req));
+
+    res.json({ notifications: visibleNotifications });
   } catch (error) {
     console.error('Get notifications error:', error);
     res.status(500).json({ msg: 'Server error' });
@@ -90,6 +140,10 @@ const markAsRead = async (req, res) => {
       return res.status(404).json({ msg: 'Notification not found' });
     }
 
+    if (!canViewNotification(notification.get({ plain: true }), req)) {
+      return res.status(403).json({ msg: 'Notification not available to this user' });
+    }
+
     notification.isRead = true;
     await notification.save();
 
@@ -134,6 +188,10 @@ const decideRequestNotification = async (req, res) => {
       return res.status(404).json({ msg: 'Notification not found' });
     }
 
+    if (!canViewNotification(notification.get({ plain: true }), req)) {
+      return res.status(403).json({ msg: 'Notification not available to this user' });
+    }
+
     if (notification.type === 'leave_request' && !canActOnLeaveRequest({ notification, req })) {
       return res.status(403).json({ msg: 'You are not allowed to review this leave request' });
     }
@@ -162,6 +220,8 @@ const decideRequestNotification = async (req, res) => {
           notification.decisionReason = rejectionReason;
           notification.targetUserId = requesterId;
           notification.targetRole = null;
+          notification.visibleUserIds = mergeUserIds([requesterId]);
+          notification.visibleRoleNames = null;
           notification.message = `${requesterName}'s leave request was rejected by the reporting manager`;
         } else {
           const hrTarget = await resolveHrTarget({ companyCode });
@@ -171,6 +231,8 @@ const decideRequestNotification = async (req, res) => {
           notification.decisionReason = null;
           notification.targetUserId = hrTarget.userId || null;
           notification.targetRole = hrTarget.userId ? null : hrTarget.roleName;
+          notification.visibleUserIds = mergeUserIds([requesterId, hrTarget.userId]);
+          notification.visibleRoleNames = hrTarget.userId ? null : [hrTarget.roleName];
           notification.message = `${requesterName}'s leave request is waiting for HR final approval`;
         }
       } else if (currentStage === 'pending_hr') {
@@ -184,6 +246,8 @@ const decideRequestNotification = async (req, res) => {
           notification.decisionReason = rejectionReason;
           notification.targetUserId = requesterId;
           notification.targetRole = null;
+          notification.visibleUserIds = mergeUserIds([requesterId]);
+          notification.visibleRoleNames = null;
           notification.message = `${requesterName}'s leave request was rejected by HR`;
         } else {
           notification.status = 'approved';
@@ -192,6 +256,8 @@ const decideRequestNotification = async (req, res) => {
           notification.decisionReason = null;
           notification.targetUserId = requesterId;
           notification.targetRole = null;
+          notification.visibleUserIds = mergeUserIds([requesterId]);
+          notification.visibleRoleNames = null;
           notification.message = `${requesterName}'s leave request was approved by HR`;
         }
       } else {
@@ -306,6 +372,8 @@ const createRequestNotification = async (req, res) => {
         status: 'pending_manager',
         targetUserId: managerTarget.userId || null,
         targetRole: managerTarget.userId ? null : managerTarget.roleName,
+        visibleUserIds: mergeUserIds([requesterId, managerTarget.userId]),
+        visibleRoleNames: managerTarget.userId ? null : [managerTarget.roleName],
         workflowStage: 'manager_review',
         decisionBy: null,
         decisionReason: null,
@@ -356,6 +424,8 @@ const createRequestNotification = async (req, res) => {
       userEmail: requesterEmail,
       message: messageParts.join(' '),
       status: 'pending',
+      visibleUserIds: resolvedTargets.length ? resolvedTargets : [requesterId],
+      visibleRoleNames: resolvedTargets.length ? null : ['admin', 'sadmin'],
     });
 
     const payload = notification.get({ plain: true });

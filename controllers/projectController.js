@@ -248,6 +248,11 @@ const createProject = async (req, res) => {
     });
 
     try {
+      const targetUserIds = await collectHierarchyUserIds({
+        companyCode: companyId,
+        userIds: [createdBy, ...participants],
+      });
+
       const notification = await Notification.create({
         companyCode: companyId,
         type: 'other',
@@ -256,11 +261,7 @@ const createProject = async (req, res) => {
         userEmail: req.user?.email || null,
         message: `Project created: ${project.title}`,
         status: 'pending',
-      });
-
-      const targetUserIds = await collectHierarchyUserIds({
-        companyCode: companyId,
-        userIds: [createdBy, ...participants],
+        visibleUserIds: targetUserIds,
       });
 
       if (targetUserIds.length > 0) {
@@ -315,6 +316,7 @@ const updateProject = async (req, res) => {
             userEmail: req.user?.email || null,
             message: `Project completed: ${project.title}`,
             status: 'pending',
+            visibleUserIds: projectTargets,
           });
 
           await publishNotificationToUsers({

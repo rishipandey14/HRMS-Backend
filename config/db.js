@@ -204,6 +204,18 @@ const connectDB = async () => {
           allowNull: true,
         });
       }
+      if (!notificationTable.visibleUserIds) {
+        await queryInterface.addColumn('notifications', 'visibleUserIds', {
+          type: Sequelize.JSON,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.visibleRoleNames) {
+        await queryInterface.addColumn('notifications', 'visibleRoleNames', {
+          type: Sequelize.JSON,
+          allowNull: true,
+        });
+      }
       if (!notificationTable.workflowStage) {
         await queryInterface.addColumn('notifications', 'workflowStage', {
           type: Sequelize.STRING,

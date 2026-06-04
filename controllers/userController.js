@@ -61,7 +61,9 @@ const signupUser = async (req, res) => {
         userName: name,
         userEmail: email,
         message: `${name} has requested to join your company`,
-        status: 'pending'
+        status: 'pending',
+        visibleUserIds: [newUser.id],
+        visibleRoleNames: ['admin', 'sadmin'],
       });
       console.log('Notification created:', notification);
 

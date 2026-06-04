@@ -57,6 +57,14 @@ const Notification = seq.define('Notification', {
 		type: DataTypes.STRING,
 		allowNull: true,
 	},
+	visibleUserIds: {
+		type: DataTypes.JSON,
+		allowNull: true,
+	},
+	visibleRoleNames: {
+		type: DataTypes.JSON,
+		allowNull: true,
+	},
 	workflowStage: {
 		type: DataTypes.ENUM('manager_review', 'hr_review', 'final'),
 		allowNull: true,

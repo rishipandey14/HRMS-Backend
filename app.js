@@ -70,7 +70,7 @@ app.use('/uploads', require('express').static(path.resolve(__dirname, 'public_up
 // Public routes for job pages and apply
 try {
   const { router: publicRouter } = require('./routes/publicRoutes');
-  app.use('/public', publicRouter);
+  app.use('/api/public', publicRouter);
 } catch (e) {
   console.warn('Public routes not mounted:', e.message);
 }
