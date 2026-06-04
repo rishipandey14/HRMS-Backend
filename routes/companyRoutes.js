@@ -8,6 +8,7 @@ const {
 } = require('../controllers/subscriptionController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { requirePermission } = require('../middleware/rbacMiddleware');
+// const { getCachedData } = require('../middleware/redis');
 
 router.post('/signup', signupCompany);
 router.post('/approve', authMiddleware, requirePermission('user.update'), approveUser);

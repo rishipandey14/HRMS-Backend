@@ -20,7 +20,7 @@ router.use(authMiddleware);
 router.get('/me', getMeRbac);
 router.get('/permissions', requireCompanyAdmin, listPermissions);
 router.get('/roles', requireCompanyAdmin, listRoles);
-router.get('/roles/tree', requireCompanyAdmin, getRoleTree);
+router.get('/roles/tree', getRoleTree);
 router.get('/orgchart', requireCompanyAdmin, getOrgChart);
 
 router.post('/roles', requireCompanyAdmin, createRole);

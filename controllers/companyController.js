@@ -8,6 +8,8 @@ const {
   getSubscriptionContext,
 } = require('../services/subscriptionService');
 const { seedSystemRolesForCompany, createSAdminRoleForCompany } = require('../services/rbacService');
+const { getPresence } = require('../services/presenceService');
+// const { redis } = require('../app');
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret"; // Use .env in production
 
@@ -115,27 +117,80 @@ const listCompanyUsers = async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 50;
     const offset = (page - 1) * limit;
-    const includeAllRoles = String(req.query.includeAllRoles || 'false').toLowerCase() === 'true';
+    const includeAllRoles = String(req.query.includeAllRoles || 'true').toLowerCase() === 'true';
+
+    const formatRelativeTime = (value) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+
+      const diffMinutes = Math.floor((Date.now() - date.getTime()) / 60000);
+      if (diffMinutes < 1) return 'just now';
+      if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+    };
 
     // Default behavior keeps existing employee-only listing for existing screens.
-    // Access control can opt into full list to reassign any role.
-    const userFilter = includeAllRoles
-      ? { companyCode: companyId }
-      : { companyCode: companyId, role: 'employee' };
-    const {rows: users, count: total} = await User.findAndCountAll({
-      where: userFilter,
+    // If `includeAllRoles` is false, filter users who have the `employee` RBAC role
+    const queryOptions = {
       attributes: { exclude: ['password'] },
       order: [['createdAt', 'DESC']],
-      offset: offset,
-      limit
+      offset,
+      limit,
+    };
+
+    if (includeAllRoles) {
+      queryOptions.where = { companyCode: companyId };
+    } else {
+      // Only include users assigned the 'employee' role within this company
+      queryOptions.where = { companyCode: companyId };
+      queryOptions.include = [{
+        association: 'rbacRoles',
+        attributes: [],
+        where: { name: 'employee', companyId },
+        through: { attributes: [] },
+        required: true,
+      }];
+    }
+
+    // Always include RBAC roles so frontend can render a user's assigned role
+    if (!queryOptions.include) {
+      queryOptions.include = [{
+        association: 'rbacRoles',
+        attributes: ['id', 'name', 'parentRoleId'],
+        through: { attributes: [] },
+        required: false,
+      }];
+    }
+
+    const { rows: users, count: total } = await User.findAndCountAll(queryOptions);
+
+    const usersWithPresence = users.map((user) => {
+      const plainUser = user.toJSON();
+      const presence = getPresence(plainUser.id);
+
+      return {
+        ...plainUser,
+        isOnline: presence.isOnline,
+        // Return raw timestamp; frontend is responsible for humanized formatting
+        lastSeenAt: presence.lastSeenAt,
+        lastSeenAgo: null,
+      };
     });
 
-    return res.json({
+    const response = {
       page,
       limit,
       total,
-      users,
-    });
+      users: usersWithPresence,
+    };
+
+    return res.json(response);
   } catch (error) {
     console.error('listCompanyUsers error:', error);
     res.status(500).json({ msg: 'Failed to list company users' });

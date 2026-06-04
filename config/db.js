@@ -73,6 +73,27 @@ const ensureUserRoleColumnSize = async () => {
   }
 };
 
+const ensureHolidayRangeSchema = async () => {
+  const queryInterface = seq.getQueryInterface();
+  const holidayTable = await queryInterface.describeTable('holidays');
+
+  if (!holidayTable.startDate) {
+    await queryInterface.addColumn('holidays', 'startDate', {
+      type: Sequelize.DATEONLY,
+      allowNull: true,
+    });
+    console.log('Added missing holidays.startDate column');
+  }
+
+  if (!holidayTable.endDate) {
+    await queryInterface.addColumn('holidays', 'endDate', {
+      type: Sequelize.DATEONLY,
+      allowNull: true,
+    });
+    console.log('Added missing holidays.endDate column');
+  }
+};
+
 const connectDB = async () => {
   try {
     await seq.authenticate();
@@ -96,6 +117,7 @@ const connectDB = async () => {
     const Permission = require('../models/RolesAndPermission/Permission');
     const RolePermission = require('../models/RolesAndPermission/RolePermission');
     const UserRole = require('../models/User/UserRole');
+    const Holiday = require('../models/Others/Holiday');
     const Job = require('../models/Recruitment/Job');
     const Candidate = require('../models/Recruitment/Candidate');
 
@@ -131,6 +153,13 @@ const connectDB = async () => {
       otherKey: 'userId',
       as: 'users',
     });
+    UserRole.belongsTo(Role, { foreignKey: 'roleId' });
+    UserRole.belongsTo(User, { foreignKey: 'userId' });
+    Role.hasMany(UserRole, { foreignKey: 'roleId' });
+    User.hasMany(UserRole, { foreignKey: 'userId' });
+
+    // Holiday model has no associations beyond company/user foreign keys
+      // Removed duplicate holiday sync
     
     // Chat models
     const Chat = require('../models/Chat/Chat');
@@ -148,8 +177,8 @@ const connectDB = async () => {
     
     // Keep schema sync opt-in to avoid expensive startup DDL on every boot.
     await ensureRoleHierarchySchema();
-    await ensureUserRoleColumnSize();
-
+    // Note: ensureUserRoleColumnSize() no longer needed - role field removed from User model
+    // and role is now managed through UserRole model
     const syncOptions = resolveSyncOptions();
     if (syncOptions) {
       await seq.sync(syncOptions);
@@ -157,6 +186,62 @@ const connectDB = async () => {
     } else {
       console.log('Skipped Sequelize sync (SEQUELIZE_SYNC_MODE=none)');
     }
+
+    // Ensure the holiday table exists for the leave-management holiday panel.
+    await Holiday.sync();
+    const queryInterface = seq.getQueryInterface();
+    const notificationTable = await queryInterface.describeTable('notifications').catch(() => null);
+    if (notificationTable) {
+      if (!notificationTable.targetUserId) {
+        await queryInterface.addColumn('notifications', 'targetUserId', {
+          type: Sequelize.INTEGER,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.targetRole) {
+        await queryInterface.addColumn('notifications', 'targetRole', {
+          type: Sequelize.STRING,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.visibleUserIds) {
+        await queryInterface.addColumn('notifications', 'visibleUserIds', {
+          type: Sequelize.JSON,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.visibleRoleNames) {
+        await queryInterface.addColumn('notifications', 'visibleRoleNames', {
+          type: Sequelize.JSON,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.workflowStage) {
+        await queryInterface.addColumn('notifications', 'workflowStage', {
+          type: Sequelize.STRING,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.decisionBy) {
+        await queryInterface.addColumn('notifications', 'decisionBy', {
+          type: Sequelize.INTEGER,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.decisionReason) {
+        await queryInterface.addColumn('notifications', 'decisionReason', {
+          type: Sequelize.TEXT,
+          allowNull: true,
+        });
+      }
+      if (!notificationTable.payload) {
+        await queryInterface.addColumn('notifications', 'payload', {
+          type: Sequelize.JSON,
+          allowNull: true,
+        });
+      }
+    }
+    await ensureHolidayRangeSchema();
 
     // Recruitment models are already required above so sync can create tables.
     
@@ -167,6 +252,9 @@ const connectDB = async () => {
     
   } catch (err) {
     console.error('Unable to connect to the database:', err);
+    if (process.env.NODE_ENV === 'test') {
+      throw err;
+    }
     process.exit(1);
   }
 };

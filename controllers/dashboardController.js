@@ -8,7 +8,7 @@ const Uptime = require("../models/Others/Uptime");
 const getDashboardData = async (req, res) => {
   try {
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
     const isAdmin = role === "admin" || role === "sadmin";
 

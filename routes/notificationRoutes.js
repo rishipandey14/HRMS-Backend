@@ -3,10 +3,11 @@ const router = express.Router();
 const { 
   getNotifications, 
   streamNotifications,
-  markAsRead 
+  markAsRead,
+  createRequestNotification,
+  decideRequestNotification
 } = require('../controllers/notificationController');
 const authMiddleware = require('../middleware/authMiddleware');
-const { requirePermission } = require('../middleware/rbacMiddleware');
 
 const sseTokenMiddleware = (req, res, next) => {
   if (!req.headers.authorization && req.query?.token) {
@@ -15,13 +16,19 @@ const sseTokenMiddleware = (req, res, next) => {
   next();
 };
 
-// Get all notifications for the logged-in company
-router.get('/', authMiddleware, requirePermission('notification.view'), getNotifications);
+// Get notifications visible to the logged-in user
+router.get('/', authMiddleware, getNotifications);
 
 // Stream real-time notifications via SSE
-router.get('/stream', sseTokenMiddleware, authMiddleware, requirePermission('notification.view'), streamNotifications);
+router.get('/stream', sseTokenMiddleware, authMiddleware, streamNotifications);
 
 // Mark notification as read
-router.patch('/:notificationId/read', authMiddleware, requirePermission('notification.update'), markAsRead);
+router.patch('/:notificationId/read', authMiddleware, markAsRead);
+
+// Approve or reject request notifications
+router.patch('/:notificationId/decision', authMiddleware, decideRequestNotification);
+
+// Create request notifications for leave / regularization submissions
+router.post('/requests', authMiddleware, createRequestNotification);
 
 module.exports = router;

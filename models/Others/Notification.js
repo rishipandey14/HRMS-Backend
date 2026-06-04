@@ -16,7 +16,7 @@ const Notification = seq.define('Notification', {
 		},
 	},
 	type: {
-		type: DataTypes.ENUM('user_approval', 'comment', 'file_upload', 'task_assigned', 'other'),
+		type: DataTypes.ENUM('user_approval', 'comment', 'file_upload', 'task_assigned', 'leave_request', 'regularization_request', 'other'),
 		defaultValue: 'other',
 	},
 	userId: {
@@ -40,8 +40,53 @@ const Notification = seq.define('Notification', {
 		allowNull: false,
 	},
 	status: {
-		type: DataTypes.ENUM('pending', 'approved', 'rejected', 'read'),
+		type: DataTypes.ENUM('pending', 'pending_manager', 'pending_hr', 'approved', 'rejected', 'read'),
 		defaultValue: 'pending',
+	},
+	targetUserId: {
+		type: DataTypes.INTEGER,
+		allowNull: true,
+		references: {
+			model: 'users',
+			key: 'id',
+		},
+		onDelete: 'SET NULL',
+		onUpdate: 'CASCADE',
+	},
+	targetRole: {
+		type: DataTypes.STRING,
+		allowNull: true,
+	},
+	visibleUserIds: {
+		type: DataTypes.JSON,
+		allowNull: true,
+	},
+	visibleRoleNames: {
+		type: DataTypes.JSON,
+		allowNull: true,
+	},
+	workflowStage: {
+		type: DataTypes.ENUM('manager_review', 'hr_review', 'final'),
+		allowNull: true,
+		defaultValue: 'manager_review',
+	},
+	decisionBy: {
+		type: DataTypes.INTEGER,
+		allowNull: true,
+		references: {
+			model: 'users',
+			key: 'id',
+		},
+		onDelete: 'SET NULL',
+		onUpdate: 'CASCADE',
+	},
+	decisionReason: {
+		type: DataTypes.TEXT,
+		allowNull: true,
+	},
+	payload: {
+		type: DataTypes.JSON,
+		allowNull: true,
 	},
 	isRead: {
 		type: DataTypes.BOOLEAN,

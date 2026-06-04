@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const { Op } = require('sequelize');
 const Job = require('../models/Recruitment/Job');
 const Company = require('../models/Company/Company');
 const Candidate = require('../models/Recruitment/Candidate');
@@ -23,10 +24,14 @@ const getPublicBaseUrl = (req) => {
 };
 
 // Public job details
-router.get('/job/:companyName/:jobId', async (req, res) => {
+router.get('/job/:companyCode/:jobId', async (req, res) => {
   try {
-    const { companyName, jobId } = req.params;
-    const company = await Company.findOne({ where: { companyName } });
+    const { companyCode, jobId } = req.params;
+    const company = await Company.findOne({
+      where: {
+        [Op.or]: [{ id: companyCode }, { companyName: companyCode }],
+      },
+    });
     if (!company) return res.status(404).json({ error: 'Company not found' });
     const job = await Job.findOne({ where: { id: jobId, companyCode: company.id, is_public: true } });
     if (!job) return res.status(404).json({ error: 'Job not found' });
@@ -38,12 +43,16 @@ router.get('/job/:companyName/:jobId', async (req, res) => {
 });
 
 // Apply to job - public
-router.post('/job/:companyName/:jobId/apply', upload.single('resume'), async (req, res) => {
+router.post('/job/:companyCode/:jobId/apply', upload.single('resume'), async (req, res) => {
   try {
-    const { companyName, jobId } = req.params;
+    const { companyCode, jobId } = req.params;
     const { name, email, phone, coverLetter } = req.body;
 
-    const company = await Company.findOne({ where: { companyName } });
+    const company = await Company.findOne({
+      where: {
+        [Op.or]: [{ id: companyCode }, { companyName: companyCode }],
+      },
+    });
     if (!company) return res.status(404).json({ error: 'Company not found' });
     const job = await Job.findOne({ where: { id: jobId, companyCode: company.id, is_public: true } });
     if (!job) return res.status(404).json({ error: 'Job not found' });

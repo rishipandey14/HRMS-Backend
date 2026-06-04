@@ -105,26 +105,81 @@ const getRoleTree = async (req, res) => {
     });
 
     const roleIds = roles.map((role) => role.id);
-    const assignments = roleIds.length
-      ? await UserRole.findAll({
-          where: { roleId: { [Op.in]: roleIds } },
-          attributes: ['roleId', 'userId'],
-        })
-      : [];
+    const users = await User.findAll({
+      where: { companyCode: companyCode },
+      attributes: ['id', 'name', 'email'],
+      include: [{
+        association: 'rbacRoles',
+        attributes: ['id', 'name', 'parentRoleId'],
+        through: { attributes: [] },
+      }],
+    });
+
+    const assignments = users.flatMap((user) => {
+      const rolesForUser = Array.isArray(user.rbacRoles) ? user.rbacRoles : [];
+      return rolesForUser
+        .filter((role) => roleIds.includes(role.id))
+        .map((role) => ({
+          roleId: role.id,
+          userId: user.id,
+          userName: user.name || user.email,
+          userEmail: user.email,
+        }));
+    });
 
     const assignmentCounts = assignments.reduce((acc, entry) => {
       acc[entry.roleId] = (acc[entry.roleId] || 0) + 1;
       return acc;
     }, {});
 
+    const assignmentByRoleId = assignments.reduce((acc, entry) => {
+      if (!acc[entry.roleId]) {
+        acc[entry.roleId] = {
+          userId: entry.userId,
+          name: entry.userName || `User ${entry.userId}`,
+          email: entry.userEmail || null,
+        };
+      }
+      return acc;
+    }, {});
+
+    const roleNameById = new Map(roles.map((role) => [String(role.id), role.name]));
+
     const tree = buildRoleHierarchyTree(
       roles.map((role) => ({
         ...role.toJSON(),
         membersCount: assignmentCounts[role.id] || 0,
+        personName: assignmentByRoleId[role.id]?.name,
+        employeeId: assignmentByRoleId[role.id]?.userId,
+        designation: role.name,
       }))
-    );
+    ).map((node) => {
+      const applyParentName = (current) => ({
+        ...current,
+        parentRoleName: current.parentRoleId ? roleNameById.get(String(current.parentRoleId)) || null : null,
+        children: Array.isArray(current.children) ? current.children.map(applyParentName) : [],
+      });
 
-    return res.json({ tree });
+      return applyParentName(node);
+    });
+
+    const pruneEmptyRoles = (nodes = []) => nodes.flatMap((node) => {
+      const children = pruneEmptyRoles(node.children || []);
+      const hasAssignedUser = Boolean(node.personName && node.employeeId);
+
+      if (hasAssignedUser) {
+        return [{
+          ...node,
+          children,
+        }];
+      }
+
+      return children;
+    });
+
+    const filteredTree = pruneEmptyRoles(tree);
+
+    return res.json({ tree: filteredTree });
   } catch (error) {
     console.error('getRoleTree error:', error);
     return res.status(500).json({ msg: 'Failed to build role tree' });

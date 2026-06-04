@@ -72,6 +72,15 @@ const Job = seq.define('Job', {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
   }
+  ,
+  createdBy: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id',
+    },
+  }
 }, {
   timestamps: true,
   tableName: 'jobs'
