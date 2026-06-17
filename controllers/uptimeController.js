@@ -28,7 +28,7 @@ const getUptimes = async (req, res) => {
     // Derive basic user info and roles from token payload
     const currentUserId = req.user.id;
     const currentUserCompanyId = req.user.companyCode || req.user.id;
-    const currentUserRole = req.user.role;
+    const currentUserRole = req.userRole;
 
     /**
      * Construct filter object according to role and query inputs

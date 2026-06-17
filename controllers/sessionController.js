@@ -24,7 +24,11 @@ const endSession = async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
     const { session, uptime } = await endSessionForUser(req.user);
-    res.json({ message: "Session ended", session, uptime });
+    res.json({
+      message: session ? "Session ended" : "No active session found",
+      session,
+      uptime,
+    });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: err.message });

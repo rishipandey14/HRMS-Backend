@@ -27,9 +27,10 @@ const approveUser = async (req, res) => {
       return res.status(404).json({ msg: 'User not found' });
     }
 
-    // Determine new role
-    const newRole = action === 'approve' ? 'employee' : 'unauthorized';
+    // Set approval status
     const notificationStatus = action === 'approve' ? 'approved' : 'rejected';
+    user.approved = action === 'approve';
+    await user.save({ transaction });
 
     if (action === 'approve') {
       const access = await validateSubscriptionCapacity(user.companyCode, 'employee');
@@ -39,8 +40,7 @@ const approveUser = async (req, res) => {
       }
     }
 
-    // Update user role
-    await user.update({ role: newRole }, { transaction });
+    // Note: Role is no longer stored on User model; managed through UserRole model
 
     if (action === 'approve') {
       await seedSystemRolesForCompany(user.companyCode);
@@ -85,8 +85,8 @@ const approveUser = async (req, res) => {
     }
 
     res.status(200).json({ 
-      msg: `User ${action}d successfully`, 
-      role: user.role 
+      msg: `User ${action}d successfully`,
+      approved: user.approved
     });
   } catch (error) {
     // Rollback transaction on error

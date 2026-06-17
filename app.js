@@ -47,6 +47,7 @@ try {
   app.use("/api/chats", require("./routes/chatRoutes"));
   app.use("/api/messages", require("./routes/messageRoutes"));
   app.use('/api/rbac', require('./routes/rbacRoutes'));
+  app.use('/api/holidays', require('./routes/holidayRoutes'));
   app.use('/api/integrations', require('./routes/integrationsRoutes'));
   app.use('/api/candidates', require('./routes/candidatesRoutes'));
   app.use('/api/jobs', require('./routes/jobsRoutes'));
@@ -69,7 +70,7 @@ app.use('/uploads', require('express').static(path.resolve(__dirname, 'public_up
 // Public routes for job pages and apply
 try {
   const { router: publicRouter } = require('./routes/publicRoutes');
-  app.use('/public', publicRouter);
+  app.use('/api/public', publicRouter);
 } catch (e) {
   console.warn('Public routes not mounted:', e.message);
 }
