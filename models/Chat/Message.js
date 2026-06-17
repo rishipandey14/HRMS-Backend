@@ -43,6 +43,14 @@ const Message = seq.define('Message', {
         type: DataTypes.STRING,
         allowNull: true,
     },
+    fileSize: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    fileMimeType: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
     reaction: {
         type: DataTypes.STRING,
         allowNull: true,

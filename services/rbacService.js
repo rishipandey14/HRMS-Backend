@@ -192,7 +192,7 @@ const getEffectivePermissions = async (req) => {
   if (req.userType === 'company') {
     return {
       companyCode,
-      role: { id: null, name: req.user.role || 'admin', isSystem: true },
+      role: { id: null, name: req.userRole || 'admin', isSystem: true },
       permissionKeys: [...ALL_DEFAULT_PERMISSION_KEYS],
       isAllAccess: true,
     };
@@ -205,7 +205,7 @@ const getEffectivePermissions = async (req) => {
       ? mappedRole
       : await resolveRoleByUserRoleName({
           companyCode,
-          userRoleName: req.user.role,
+          userRoleName: req.userRole,
         });
 
   if (resolvedRole && resolvedRole.role && resolvedRole.role.companyId === companyCode) {
@@ -223,7 +223,7 @@ const getEffectivePermissions = async (req) => {
   // Strict fallback: deny when no company-scoped RBAC role mapping exists.
   return {
     companyCode,
-    role: { id: null, name: req.user.role || 'unauthorized', isSystem: true },
+    role: { id: null, name: req.userRole || 'unauthorized', isSystem: true },
     permissionKeys: [],
     isAllAccess: false,
   };
@@ -359,6 +359,7 @@ const buildRoleHierarchyTree = (roles = []) => {
   const nodeMap = new Map();
   roles.forEach((role) => {
     nodeMap.set(role.id, {
+      ...role,
       id: role.id,
       name: role.name,
       isSystem: role.isSystem,
@@ -387,10 +388,23 @@ const ensureUserRoleAssignment = async ({ userId, roleId, transaction }) => {
   const existing = await UserRole.findOne({ where: { userId }, transaction });
   if (existing) {
     await existing.update({ roleId }, { transaction });
+    // Mark user as approved when role is assigned/updated
+    try {
+      await User.update({ approved: true }, { where: { id: userId }, transaction });
+    } catch (e) {
+      console.warn('Failed to mark user approved after role update:', e.message);
+    }
     return existing;
   }
 
-  return UserRole.create({ userId, roleId }, { transaction });
+  const created = await UserRole.create({ userId, roleId }, { transaction });
+  // Mark user as approved when role is assigned
+  try {
+    await User.update({ approved: true }, { where: { id: userId }, transaction });
+  } catch (e) {
+    console.warn('Failed to mark user approved after role assignment:', e.message);
+  }
+  return created;
 };
 
 const getRolePermissionDetails = async (roleId) => {

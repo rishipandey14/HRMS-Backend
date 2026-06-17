@@ -14,11 +14,12 @@ function messageEvents(io, socket) {
         return;
       }
 
-      const { chatId, content, type, replyToId } = data;
-      if (!chatId || !content || !type) {
-        console.error("send_message error: Missing data fields.", data);
-        return;
-      }
+        const { chatId, content, type, replyToId, fileUrl, fileSize, fileMimeType } = data;
+        // Require chatId and type; allow either content or fileUrl for file messages
+        if (!chatId || !type || (!content && !fileUrl)) {
+          console.error("send_message error: Missing data fields.", data);
+          return;
+        }
 
       console.log(`User ${socket.userId} sending message to chat ${chatId}`);
 
@@ -40,8 +41,11 @@ function messageEvents(io, socket) {
       const message = await Message.create({
         chatId,
         senderId: socket.userId,
-        content,
+        content: content || null,
         type,
+        fileUrl: fileUrl || null,
+        fileSize: fileSize ? Number(fileSize) : null,
+        fileMimeType: fileMimeType || null,
         replyToId: replyToId || null,
       });
 

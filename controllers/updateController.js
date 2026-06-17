@@ -13,7 +13,7 @@ const getUpdatesByTask = async (req, res) => {
   try {
     const taskId = req.params.taskId;
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
 
     const task = await Task.findByPk(taskId);
@@ -80,7 +80,7 @@ const getUpdateById = async (req, res) => {
   try {
     const { updateId } = req.params;
     const userId = req.user.id;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
 
     const update = await Update.findByPk(updateId);
@@ -127,7 +127,7 @@ const createUpdate = async (req, res) => {
     const userId = req.user.id;
     const userType = req.userType || req.user.type;
     const taskId = req.params.taskId;
-    const role = req.user.role;
+    const role = req.userRole;
     const companyCode = req.user.companyCode || req.user.id;
 
     if (!userId) {
@@ -194,7 +194,7 @@ const updateUpdate = async (req, res) => {
     const userId = req.user.id;
     const userType = req.userType || req.user.type;
     const { updateId } = req.params;
-    const role = req.user.role;
+    const role = req.userRole;
 
     if (!(role === "admin" || role === "sadmin") && !hasUpdatePermission(req, 'update.update')) {
       return res.status(403).json({ error: "Access denied: admin only" });
@@ -230,7 +230,7 @@ const updateUpdate = async (req, res) => {
 const deleteUpdate = async (req, res) => {
   try {
     const { updateId } = req.params;
-    const role = req.user.role;
+    const role = req.userRole;
 
     if (!(role === "admin" || role === "sadmin") && !hasUpdatePermission(req, 'update.delete')) {
       return res.status(403).json({ error: "Access denied: admin only" });

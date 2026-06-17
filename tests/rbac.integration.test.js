@@ -175,7 +175,8 @@ describe('Permission middleware allow and deny behavior', () => {
     const app = express();
     app.get('/ok', (req, res, next) => {
       req.userType = 'user';
-      req.user = { id: 1, companyCode: '123456', role: 'employee' };
+      req.user = { id: 1, companyCode: '123456' };
+      req.userRole = 'employee';
       next();
     }, requirePermission('project.view'), (req, res) => {
       res.json({ ok: true });
@@ -197,7 +198,8 @@ describe('Permission middleware allow and deny behavior', () => {
     const app = express();
     app.get('/deny', (req, res, next) => {
       req.userType = 'user';
-      req.user = { id: 1, companyCode: '123456', role: 'employee' };
+      req.user = { id: 1, companyCode: '123456' };
+      req.userRole = 'employee';
       next();
     }, requirePermission('project.view'), (req, res) => {
       res.json({ ok: true });

@@ -9,7 +9,7 @@ const { Op } = require("sequelize");
 const sendMessage = async (req, res) => {
   try {
     const senderId = req.user.id;
-    let { chatId, receiverId, content, type, fileUrl, replyToId, forwardedFromId } =
+    let { chatId, receiverId, content, type, fileUrl, fileSize, fileMimeType, replyToId, forwardedFromId } =
       req.body;
 
     let chat;
@@ -80,6 +80,8 @@ const sendMessage = async (req, res) => {
       content,
       type,
       fileUrl,
+        fileSize: fileSize ? Number(fileSize) : null,
+        fileMimeType: fileMimeType || null,
       replyToId: replyToId || null,
       forwardedFromId: forwardedFromId || null,
     });

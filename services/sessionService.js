@@ -1,5 +1,6 @@
 const Session = require("../models/Others/Session");
 const Uptime = require("../models/Others/Uptime");
+const User = require('../models/User/User');
 const { getISOWeekString, getWeekDayName } = require("../utils/dateUtils");
 
 // Creates a new login session for a user or company.
@@ -10,6 +11,29 @@ async function createSessionForUser(user, isCompany = false) {
 
     if (!companyId) {
       throw new Error('companyId is required for session creation');
+    }
+
+    // If creating a session for a user (not a company), ensure the user exists in DB
+    if (!isCompany && userId) {
+      try {
+        const existingUser = await User.findByPk(userId);
+        if (!existingUser) {
+          console.warn(`createSessionForUser: user ${userId} not found in users table — skipping session creation`);
+          return null;
+        }
+      } catch (e) {
+        console.warn(`createSessionForUser: failed to verify user existence for ${userId}: ${e.message}`);
+        return null;
+      }
+    }
+
+    const whereClause = isCompany
+      ? { companyId, userId: null, logoutAt: null }
+      : { userId, logoutAt: null };
+
+    const existingSession = await Session.findOne({ where: whereClause });
+    if (existingSession) {
+      return existingSession;
     }
 
     const session = await Session.create({
@@ -39,7 +63,9 @@ async function endSessionForUser(user, isCompany = false) {
       : { userId, logoutAt: null };
       
     const session = await Session.findOne({ where: whereClause });
-    if (!session) throw new Error("No active session found");
+    if (!session) {
+      return { session: null, uptime: null };
+    }
 
     session.logoutAt = new Date();
     session.durationHours =
