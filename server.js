@@ -16,9 +16,14 @@ setupSocket(server);
 const { init: initPresence } = require('./services/presenceService');
 const { shutdown: shutdownPresence } = require('./services/presenceService');
 
+console.log("Starting application...");
+console.log("PORT =", process.env.PORT);
+
 connectDB().then(async () => {
+	console.log("Database connected");
 	// Load persisted presence timestamps into memory
 	await initPresence();
+	console.log("Starting HTTP server");
 	server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch((err) => {
 	console.error('Database connection failed:', err);
