@@ -1,11 +1,16 @@
-// const mongoose = require('mongoose');
 require("dotenv").config();
 const { Sequelize } = require("sequelize");
 
 // Prefer DB_URL but fall back to DB_URI to avoid mismatched env var names
 const enableSqlLogging = process.env.SQL_LOGGING === "true";
-const seq = new Sequelize(process.env.DB_URL || process.env.DB_URI, {
-  logging: enableSqlLogging ? console.log : false,
+const seq = new Sequelize(process.env.DB_URL, {
+  dialect: "mysql",
+  logging: false,
+  dialectOptions: {
+    ssl: {
+      rejectUnauthorized: false,
+    },
+  },
 });
 
 const resolveSyncOptions = () => {
@@ -175,8 +180,8 @@ const connectDB = async () => {
     if (Chat.setupAssociations) Chat.setupAssociations();
     if (Message.setupAssociations) Message.setupAssociations();
     
-    // Keep schema sync opt-in to avoid expensive startup DDL on every boot.
-    await ensureRoleHierarchySchema();
+    // // Keep schema sync opt-in to avoid expensive startup DDL on every boot.
+    // await ensureRoleHierarchySchema();
     // Note: ensureUserRoleColumnSize() no longer needed - role field removed from User model
     // and role is now managed through UserRole model
     const syncOptions = resolveSyncOptions();
@@ -186,6 +191,9 @@ const connectDB = async () => {
     } else {
       console.log('Skipped Sequelize sync (SEQUELIZE_SYNC_MODE=none)');
     }
+
+    // Run migrations AFTER tables exist
+    await ensureRoleHierarchySchema();
 
     // Ensure the holiday table exists for the leave-management holiday panel.
     await Holiday.sync();
